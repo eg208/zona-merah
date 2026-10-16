@@ -1,0 +1,2277 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Zona Merah</title>
+<meta name="description" content="Third-person shooter zombie low-poly: bertahan 8 gelombang di 4 area.">
+<meta name="theme-color" content="#0c0f12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Zona Merah">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+@font-face{font-family:"Chakra Petch";font-weight:400;font-style:normal;font-display:swap;src:url(fonts/chakra-petch-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Chakra Petch";font-weight:600;font-style:normal;font-display:swap;src:url(fonts/chakra-petch-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Chakra Petch";font-weight:700;font-style:normal;font-display:swap;src:url(fonts/chakra-petch-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:"Saira Stencil One";font-weight:400;font-style:normal;font-display:swap;src:url(fonts/saira-stencil-one-latin-400-normal.woff2) format("woff2")}
+*,*::before,*::after{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{margin:0;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+body{font-size:14px;font-family:system-ui,sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<style>
+/* Layout: canvas penuh layar, HUD di empat sudut, overlay menu di tengah. Satu tema gelap yang disengaja. */
+:root{
+  --bg:#0c0f12;
+  --panel:rgba(14,18,20,.78);
+  --fg:#dcdccf;
+  --muted:#8a8f86;
+  --accent:#e2a23b;     /* kuning hazard */
+  --danger:#cf3a2e;     /* darah */
+  --ok:#8fb36a;
+  --line:rgba(220,220,207,.18);
+  --f-display:"Saira Stencil One","Impact",sans-serif;
+  --f-ui:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--fg);font-family:var(--f-ui)}
+canvas#game{position:fixed;inset:0;width:100%;height:100%;display:block}
+#hud{position:fixed;inset:0;pointer-events:none;
+  padding-top:max(16px,env(safe-area-inset-top,0px));padding-bottom:max(16px,env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  font-variant-numeric:tabular-nums}
+.corner{position:absolute;display:flex;flex-direction:column;gap:6px}
+.tl{top:max(16px,env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px))}
+.tr{top:max(16px,env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));align-items:flex-end}
+.bl{bottom:max(16px,env(safe-area-inset-bottom,0px));left:max(16px,env(safe-area-inset-left,0px));width:min(300px,42vw)}
+.br{bottom:max(16px,env(safe-area-inset-bottom,0px));right:max(16px,env(safe-area-inset-right,0px));align-items:flex-end}
+.lbl{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.big{font-family:var(--f-display);font-size:34px;line-height:1;color:var(--fg)}
+.wave .big{color:var(--accent)}
+.bar{height:10px;background:rgba(255,255,255,.08);border:1px solid var(--line);position:relative;overflow:hidden}
+.bar>i{position:absolute;inset:0;transform-origin:left;background:var(--fg);transition:transform .15s}
+#hpBar>i{background:var(--danger)}
+#stBar{height:5px}#stBar>i{background:var(--accent)}
+.hprow{display:flex;justify-content:space-between;align-items:baseline}
+.hprow b{font-size:20px}
+.ammo{display:flex;align-items:baseline;gap:8px}
+.ammo .big{font-size:52px}
+.ammo span{font-size:20px;color:var(--muted)}
+#slots{display:flex;gap:6px;margin-top:4px}
+#slots div{border:1px solid var(--line);background:var(--panel);padding:5px 9px;display:flex;flex-direction:column;gap:1px;min-width:72px;opacity:.5;transition:opacity .15s,border-color .15s}
+#slots div.on{opacity:1;border-color:var(--accent)}
+#slots b{font-size:10px;color:var(--accent);letter-spacing:.1em}
+#slots span{font-size:13px;font-weight:600}
+#slots em{font-style:normal;font-size:11px;color:var(--muted)}
+#reloadTxt{color:var(--accent);font-weight:700;letter-spacing:.14em;font-size:13px;height:16px}
+/* crosshair */
+#xh{position:absolute;left:50%;top:50%;width:0;height:0}
+#xh i{position:absolute;background:var(--fg);box-shadow:0 0 2px #000}
+#xh .u,#xh .d{width:2px;height:9px;left:-1px}
+#xh .l,#xh .r{height:2px;width:9px;top:-1px}
+#xh .dot{width:2px;height:2px;left:-1px;top:-1px}
+#hit{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;opacity:0}
+#hit::before,#hit::after{content:"";position:absolute;left:12px;top:0;width:2px;height:26px;background:#fff;
+  -webkit-mask:linear-gradient(#000 0 35%,transparent 35% 65%,#000 65%);mask:linear-gradient(#000 0 35%,transparent 35% 65%,#000 65%)}
+#hit::before{transform:rotate(45deg)}#hit::after{transform:rotate(-45deg)}
+#hit.kill::before,#hit.kill::after{background:var(--danger)}
+#vignette{position:fixed;inset:0;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse at center,transparent 45%,rgba(160,20,15,.75) 100%)}
+#adsVig{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .15s;
+  background:radial-gradient(circle at center,transparent 38%,rgba(0,0,0,.55) 75%)}
+#overlay.celebrate{background:linear-gradient(180deg,rgba(8,10,12,.15),rgba(8,10,12,.78) 55%)}
+.tape.win{background:repeating-linear-gradient(-45deg,var(--ok) 0 14px,#111 14px 28px)}
+h1 em.ok{color:var(--ok)}
+.newbest{margin:0;color:var(--accent);font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:14px}
+.btnrow{display:flex;gap:12px;flex-wrap:wrap}
+button.go.ghost{background:transparent;color:var(--fg);border:2px solid var(--fg)}
+button.go.ghost:hover{border-color:var(--accent);color:var(--accent);filter:none}
+#hud.cele .corner,#hud.cele #xh{opacity:0;transition:opacity .6s}
+#winCard{animation:rise .7s ease-out both}
+#winCard h1{font-size:clamp(40px,8vw,76px)}
+@keyframes rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#winCard{animation:none}}
+#fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none}
+.area{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--fg);border-left:2px solid var(--accent);padding-left:8px;margin-top:2px}
+#banner{position:absolute;left:0;right:0;top:22%;text-align:center;opacity:0;transition:opacity .4s}
+#banner .t{font-family:var(--f-display);font-size:clamp(36px,7vw,72px);color:var(--accent);letter-spacing:.04em;text-shadow:0 2px 0 #000}
+#banner .s{font-size:14px;letter-spacing:.2em;text-transform:uppercase;color:var(--fg)}
+#feed{font-size:13px;color:var(--fg);text-align:right;display:flex;flex-direction:column;gap:2px;margin-top:4px}
+#feed div{opacity:.9}
+#feed .hs{color:var(--accent)}
+/* overlay */
+#overlay{position:fixed;inset:0;display:grid;place-items:center;background:rgba(8,10,12,.72);
+  padding-block:max(24px,env(safe-area-inset-top,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));overflow:auto}
+.card{width:min(560px,100%);display:flex;flex-direction:column;gap:18px}
+.tape{height:12px;background:repeating-linear-gradient(-45deg,var(--accent) 0 14px,#111 14px 28px);opacity:.9}
+h1{font-family:var(--f-display);font-weight:400;font-size:clamp(48px,11vw,96px);line-height:.9;margin:0;color:var(--fg);text-wrap:balance}
+h1 em{font-style:normal;color:var(--danger)}
+.sub{margin:0;color:var(--muted);max-width:60ch;line-height:1.5}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px;margin:0}
+.keys dt{font-weight:700;color:var(--accent);white-space:nowrap}
+.keys dd{margin:0;color:var(--fg)}
+.types{display:flex;gap:10px;flex-wrap:wrap}
+.types div{flex:1 1 140px;border:1px solid var(--line);padding:10px 12px;font-size:13px;line-height:1.4}
+.types b{display:block;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.types .w b{color:#9fb38a}.types .r b{color:#d9c46a}.types .k b{color:#d07a5a}
+button.go{font-family:var(--f-display);font-size:26px;letter-spacing:.06em;background:var(--accent);color:#14110b;border:0;padding:14px 22px;cursor:pointer;align-self:flex-start}
+button.go:hover{filter:brightness(1.1)}
+.vol{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--line);padding:10px 12px}
+.vol input{flex:1 1 160px;min-width:0;accent-color:var(--accent);cursor:pointer}
+.vol output{font-weight:700;min-width:4ch;text-align:right;font-variant-numeric:tabular-nums}
+.vol .test{font-family:var(--f-ui);font-size:12px;letter-spacing:.1em;text-transform:uppercase;background:transparent;color:var(--fg);border:1px solid var(--line);padding:6px 10px;cursor:pointer}
+.vol .test:hover{border-color:var(--accent);color:var(--accent)}
+.vol input:focus-visible,.vol .test:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.go:focus-visible{outline:3px solid var(--fg);outline-offset:3px}
+.stats{display:flex;gap:28px;flex-wrap:wrap}
+.stats div{display:flex;flex-direction:column;gap:2px}
+.note{font-size:12px;color:var(--muted)}
+/* ---- kontrol sentuh (hanya aktif di HP/tablet: body.touch) ---- */
+.tkeys{display:none}
+body.touch .keys{display:none}
+body.touch .tkeys{display:grid}
+body.touch .desk-only{display:none}
+#touch{position:fixed;inset:0;display:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+body.touch #touch.on{display:block}
+.joy{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:2px solid rgba(220,220,207,.35);background:rgba(14,18,20,.25);pointer-events:none;opacity:.55;transition:opacity .15s}
+.joy.active{opacity:1}
+.joy i{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(220,220,207,.55);box-shadow:0 0 0 2px rgba(0,0,0,.25)}
+.joy.sprint{border-color:var(--accent)}
+.joy.sprint i{background:var(--accent)}
+.tbtn{position:absolute;border-radius:50%;display:grid;place-items:center;font-family:var(--f-ui);font-weight:700;font-size:11px;letter-spacing:.1em;color:var(--fg);
+  background:rgba(14,18,20,.45);border:2px solid rgba(220,220,207,.4);touch-action:none;-webkit-tap-highlight-color:transparent}
+.tbtn.down{background:rgba(226,162,59,.45);border-color:var(--accent)}
+.tbtn.lit{border-color:var(--accent);color:var(--accent)}
+#tFire{width:92px;height:92px;right:calc(28px + env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));font-size:13px;background:rgba(207,58,46,.35);border-color:rgba(255,120,100,.6)}
+#tFire.down{background:rgba(207,58,46,.7)}
+#tJump{width:62px;height:62px;right:calc(136px + env(safe-area-inset-right,0px));bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+#tAim{width:58px;height:58px;right:calc(40px + env(safe-area-inset-right,0px));bottom:calc(170px + env(safe-area-inset-bottom,0px))}
+#tPause{width:44px;height:44px;border-radius:10px;right:calc(16px + env(safe-area-inset-right,0px));top:calc(112px + env(safe-area-inset-top,0px));display:flex;gap:6px;align-items:center;justify-content:center}
+#tPause i{display:block;width:5px;height:16px;background:var(--fg);border-radius:1px}
+#tReload{width:54px;height:54px;right:calc(126px + env(safe-area-inset-right,0px));bottom:calc(112px + env(safe-area-inset-bottom,0px))}
+/* HUD di layar sentuh: amunisi & slot ke tengah bawah, ukuran lebih kecil */
+body.touch .big{font-size:24px}
+body.touch .corner.br{right:auto;left:50%;transform:translateX(-50%);align-items:center;bottom:max(8px,env(safe-area-inset-bottom,0px))}
+body.touch .ammo .big{font-size:30px}
+body.touch #slots{pointer-events:auto}
+body.touch #slots div{min-width:64px;padding:6px 10px}
+body.touch .corner.bl{width:min(200px,28vw)}
+body.touch #feed{display:none}
+body.touch .lbl{font-size:10px}
+#rotate{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;gap:14px;align-items:center;justify-content:center;text-align:center;background:var(--bg);color:var(--fg);padding:24px}
+#rotate b{font-family:var(--f-display);font-size:34px;color:var(--accent)}
+#rotate .phone{width:46px;height:78px;border:3px solid var(--fg);border-radius:9px;animation:turn 2s ease-in-out infinite}
+@keyframes turn{0%,30%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+@media (orientation:portrait){body.touch #rotate{display:flex}}
+/* HUD sentuh: darah ke tengah atas, amunisi cukup di slot senjata */
+body.touch .corner.bl{top:max(12px,env(safe-area-inset-top,0px));bottom:auto;left:50%;transform:translateX(-50%);width:min(240px,30vw);gap:4px}
+body.touch .corner.bl .lbl:last-child{display:none}
+body.touch .ammo,body.touch #wpnLbl{display:none}
+/* layar pendek (HP mendatar): menu & kartu lebih ringkas */
+@media (max-height:520px){
+  #overlay{padding-block:max(12px,env(safe-area-inset-top,0px))}
+  .card{gap:10px}
+  h1,#winCard h1{font-size:40px}
+  h1 br{display:none}
+  h1 em{margin-left:.25em}
+  .sub,.types,.note{display:none}
+  .keys{font-size:12.5px;gap:3px 12px}
+  .vol{padding:6px 10px}
+  button.go{font-size:20px;padding:10px 18px}
+  .stats{gap:18px}
+  .stats .big{font-size:22px}
+  #banner{top:18%}
+  #banner .t{font-size:34px}
+  #banner .s{font-size:11px}
+}
+@media (prefers-reduced-motion:reduce){#rotate .phone{animation:none;transform:rotate(-90deg)}}
+@media (max-width:520px){.ammo .big{font-size:38px}.big{font-size:26px}}
+</style>
+
+<canvas id="game"></canvas>
+<div id="adsVig"></div>
+<div id="vignette"></div>
+<div id="fade"></div>
+<div id="touch">
+  <div class="joy" id="joy"><i></i></div>
+  <div class="tbtn" id="tFire">TEMBAK</div>
+  <div class="tbtn" id="tJump">LOMPAT</div>
+  <div class="tbtn" id="tAim">BIDIK</div>
+  <div class="tbtn" id="tReload">ISI</div>
+  <div class="tbtn" id="tPause" aria-label="Jeda"><i></i><i></i></div>
+</div>
+<div id="rotate"><div class="phone"></div><b>Putar HP-mu</b><span>Zona Merah dimainkan dalam posisi mendatar (landscape).</span></div>
+
+<div id="hud" hidden>
+  <div class="corner tl wave">
+    <span class="lbl">Gelombang</span>
+    <span class="big" id="waveTxt">1</span>
+    <span class="lbl" id="leftTxt">Sisa zombie 0</span>
+    <span class="area" id="areaTxt">Persimpangan Kota</span>
+  </div>
+  <div class="corner tr">
+    <span class="lbl">Skor</span>
+    <span class="big" id="scoreTxt">0</span>
+    <span class="lbl" id="killTxt">0 kill</span>
+    <div id="feed"></div>
+  </div>
+  <div class="corner bl">
+    <div class="hprow"><span class="lbl">Darah</span><b id="hpTxt">100</b></div>
+    <div class="bar" id="hpBar"><i></i></div>
+    <div class="bar" id="stBar"><i></i></div>
+    <span class="lbl">Stamina</span>
+  </div>
+  <div class="corner br">
+    <span id="reloadTxt"></span>
+    <div class="ammo"><span class="big" id="magTxt">30</span><span id="resTxt">/ 120</span></div>
+    <span class="lbl" id="wpnLbl">AK-47 · 7.62 mm</span>
+    <div id="slots"></div>
+  </div>
+  <div id="xh"><i class="u"></i><i class="d"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
+  <div id="hit"></div>
+  <div id="banner"><div class="t" id="bannerT"></div><div class="s" id="bannerS"></div></div>
+</div>
+
+<div id="overlay">
+  <div class="card" id="menuCard">
+    <div class="tape"></div>
+    <h1>ZONA<br><em>MERAH</em></h1>
+    <p class="sub">Prototipe third-person shooter. Bertahan dari gelombang zombie di area karantina yang ditinggalkan. Tiap gelombang makin banyak, makin cepat.</p>
+    <dl class="keys">
+      <dt>W A S D</dt><dd>Bergerak</dd>
+      <dt>Mouse</dt><dd>Membidik arah</dd>
+      <dt>Klik kiri</dt><dd>Menembak (tahan untuk otomatis)</dd>
+      <dt>Klik kanan</dt><dd>Bidik lewat bahu (ADS), lebih akurat</dd>
+      <dt>Shift</dt><dd>Lari (menguras stamina)</dd>
+      <dt>Spasi</dt><dd>Lompat: naik ke mobil, barikade, peti kecil, atau hindari pukulan</dd>
+      <dt>R</dt><dd>Isi ulang magazen</dd>
+      <dt>1 2 3 · Scroll</dt><dd>Ganti senjata: Pistol, AK-47, Shotgun (Q = senjata sebelumnya)</dd>
+      <dt>M · Esc</dt><dd>Suara on/off · Jeda</dd>
+      <dt>[ &nbsp;]</dt><dd>Volume turun / naik saat bermain</dd>
+    </dl>
+    <dl class="keys tkeys">
+      <dt>Jempol kiri</dt><dd>Joystick muncul di mana pun kamu sentuh. Dorong penuh ke depan untuk lari.</dd>
+      <dt>Geser kanan</dt><dd>Geser layar sisi kanan untuk membidik</dd>
+      <dt>TEMBAK</dt><dd>Tahan untuk menembak. Sambil ditahan, geser jempol untuk membidik.</dd>
+      <dt>BIDIK</dt><dd>Ketuk untuk bidik lewat bahu, ketuk lagi untuk lepas</dd>
+      <dt>LOMPAT · ISI</dt><dd>Lompat ke atas mobil/peti · isi ulang magazen</dd>
+      <dt>Slot senjata</dt><dd>Ketuk Pistol, AK-47, atau Shotgun di bawah layar untuk ganti</dd>
+      <dt>❚❚</dt><dd>Jeda (pojok kanan atas, di bawah skor)</dd>
+    </dl>
+    <div class="types">
+      <div class="w"><b>Pejalan</b>Lambat, tahan 3 peluru badan.</div>
+      <div class="r"><b>Pelari</b>Muncul gelombang 2. Cepat dan rapuh.</div>
+      <div class="k"><b>Raksasa</b>Muncul gelombang 3. Lambat, pukulannya berat.</div>
+    </div>
+    <div class="vol">
+      <label class="lbl" for="volA">Volume</label>
+      <input type="range" id="volA" min="0" max="100" step="5" value="100">
+      <output id="volAOut">100%</output>
+      <button type="button" class="test" id="volATest">Tes suara</button>
+    </div>
+    <div class="btnrow">
+      <button class="go" id="startBtn">MULAI</button>
+      <button class="go ghost" id="installBtn" hidden>PASANG APLIKASI</button>
+    </div>
+    <span class="note">Tembakan ke kepala = 2,5× damage. Zombie kadang menjatuhkan peluru (kuning) atau kotak medis (merah).</span>
+  </div>
+  <div class="card" id="pauseCard" hidden>
+    <div class="tape"></div>
+    <h1>JEDA</h1>
+    <p class="sub">Klik lanjut untuk kembali ke area.</p>
+    <div class="vol">
+      <label class="lbl" for="volB">Volume</label>
+      <input type="range" id="volB" min="0" max="100" step="5" value="100">
+      <output id="volBOut">100%</output>
+      <button type="button" class="test" id="volBTest">Tes suara</button>
+    </div>
+    <button class="go" id="resumeBtn">LANJUT</button>
+  </div>
+  <div class="card" id="overCard" hidden>
+    <div class="tape"></div>
+    <h1>KAMU<br><em>TERINFEKSI</em></h1>
+    <div class="stats">
+      <div><span class="lbl">Gelombang</span><span class="big" id="oWave">0</span></div>
+      <div><span class="lbl">Area terakhir</span><span class="big" id="oArea" style="font-size:22px">-</span></div>
+      <div><span class="lbl">Kill</span><span class="big" id="oKill">0</span></div>
+      <div><span class="lbl">Skor</span><span class="big" id="oScore">0</span></div>
+      <div><span class="lbl">Rekor</span><span class="big" id="oBest">0</span></div>
+    </div>
+    <button class="go" id="againBtn">MAIN LAGI</button>
+  </div>
+  <div class="card" id="winCard" hidden>
+    <div class="tape win"></div>
+    <span class="lbl">8 gelombang · 4 area · semua dilewati</span>
+    <h1>TAMAT<br><em class="ok">KAMU SELAMAT</em></h1>
+    <p class="sub">Fajar menyingsing di Pemakaman Tua. Zona merah berhasil kamu tembus dari persimpangan kota sampai gerbang terakhir.</p>
+    <div class="stats">
+      <div><span class="lbl">Kill</span><span class="big" id="wKill">0</span></div>
+      <div><span class="lbl">Tembak kepala</span><span class="big" id="wHead">0</span></div>
+      <div><span class="lbl">Waktu</span><span class="big" id="wTime">0:00</span></div>
+      <div><span class="lbl">Skor</span><span class="big" id="wScore">0</span></div>
+      <div><span class="lbl">Rekor</span><span class="big" id="wBest">0</span></div>
+    </div>
+    <p class="newbest" id="wNew" hidden>Rekor baru!</p>
+    <div class="btnrow">
+      <button class="go" id="winAgainBtn">MAIN LAGI</button>
+      <button class="go ghost" id="endlessBtn">LANJUT TANPA AKHIR</button>
+    </div>
+    <span class="note">Mode tanpa akhir: area terus bergiliran, zombie makin banyak dan makin cepat.</span>
+  </div>
+</div>
+
+<script src="three.min.js"></script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const lerp = (a,b,t) => a + (b-a)*t;
+const rand = (a,b) => a + Math.random()*(b-a);
+
+/* ---------- renderer & scene ---------- */
+// perangkat sentuh = penunjuk utama kasar (HP/tablet); laptop layar sentuh tetap mode PC
+const IS_TOUCH = !!window.__forceTouch || (('ontouchstart' in window || navigator.maxTouchPoints > 0) && matchMedia('(pointer:coarse)').matches);
+if(IS_TOUCH) document.body.classList.add('touch');
+const LOW_GFX = IS_TOUCH;
+const canvas = $('game');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, LOW_GFX ? 1.25 : 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = LOW_GFX ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0d10);
+scene.fog = new THREE.FogExp2(0x0b0d10, 0.03);
+const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 200);
+
+function resize(){
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+const hemi = new THREE.HemisphereLight(0x5a6478, 0x15120f, 0.5); scene.add(hemi);
+const moon = new THREE.DirectionalLight(0x9fb0d0, 0.45);
+moon.position.set(-30, 50, 20);
+moon.castShadow = true;
+moon.shadow.mapSize.set(LOW_GFX ? 1024 : 2048, LOW_GFX ? 1024 : 2048);
+Object.assign(moon.shadow.camera, {left:-55, right:55, top:55, bottom:-55, near:1, far:140});
+scene.add(moon);
+
+/* ---------- kota: persimpangan senja ----------
+   Grid jalan 3×3 (pusat jalan di -28, 0, 28; lebar 10 m) membagi area jadi 16 blok.
+   Tiap blok: trotoar + isi (gedung, rumah berpagar, taman, atau parkiran).
+   Semua kendaraan parkir diam dan bisa dipanjat. */
+const ARENA = 46;
+let seed = 7;
+const srand = () => (seed = (seed*16807) % 2147483647) / 2147483647;
+const srange = (a,b) => a + srand()*(b-a);
+const spick = arr => arr[Math.floor(srand()*arr.length)];
+let LV = new THREE.Group(); scene.add(LV);   // grup geometri area aktif
+const boxes = [];          // AABB untuk tabrakan
+const solidMeshes = [];    // untuk raycast peluru & kamera
+const MS = (c, o) => new THREE.MeshStandardMaterial(Object.assign({color:c, roughness:.85, flatShading:true}, o||{}));
+const MB = c => new THREE.MeshBasicMaterial({color:c});
+const MAT = {
+  curb:MS(0x505357), grass:MS(0x3b4632), dirt:MS(0x55483c), lot:MS(0x2b2d30),
+  pole:MS(0x767c82,{roughness:.5,metalness:.3}), poleDk:MS(0x36393e,{roughness:.6}),
+  lampHead:MB(0xffe2b0), trunk:MS(0x5a4038), fence:MS(0x5a4038), bin:MS(0x55605a),
+  roof:MS(0x2c2e32), trim:MS(0x45484d), glass:MS(0x1a1d22,{roughness:.2,metalness:.5}),
+  tire:MS(0x1d1b22), dark:MS(0x25272b), head:MB(0xfff6dc), tail:MB(0xc42a2a),
+  orange:MS(0xe0892a), sigBox:MS(0xd8902c), sigOff:MS(0x212327), red:MB(0xff3a2e), amber:MB(0xffb12e), green:MB(0x3dff8a),
+  hydrant:MS(0xb83a3a), bench:MS(0x6c4c3a), crate:MS(0x7a5a3c), houseRoof:MS(0x6a3f45), concrete:MS(0x6a6c70)
+};
+const leafMats = [0x2d3b2a,0x34432f,0x2a3830,0x384430].map(c => MS(c));
+const unitBox = new THREE.BoxGeometry(1,1,1);
+
+// kotak statis: (x, z) pusat, y0 = dasar. opt.collide → ikut tabrakan (opt.top = tinggi pijakan)
+function blk(x, y0, z, w, h, d, mat, opt){
+  opt = opt || {};
+  const m = new THREE.Mesh(unitBox, mat); m.scale.set(w,h,d); m.position.set(x, y0+h/2, z);
+  m.castShadow = opt.shadow !== false; m.receiveShadow = true; LV.add(m);
+  if(opt.collide) boxes.push({minX:x-w/2, maxX:x+w/2, minZ:z-d/2, maxZ:z+d/2, h:opt.top ?? (y0+h)});
+  if(opt.collide || opt.solid) solidMeshes.push(m);
+  return m;
+}
+const collider = (x,z,w,d,h) => boxes.push({minX:x-w/2, maxX:x+w/2, minZ:z-d/2, maxZ:z+d/2, h});
+
+const ROADS = [-28, 0, 28], RW = 5;
+const SPANS = [[-46,-33],[-23,-5],[5,23],[33,46]];       // rentang blok di antara jalan
+const nearestRoad = v => ROADS.reduce((a,r) => Math.abs(v-r) < Math.abs(v-a) ? r : a, ROADS[0]);
+
+/* ---- tanah: satu tekstur aspal dengan marka jalan ---- */
+function cityGroundTexture(){
+  const N = 2048, s = N/100, P = v => (v+50)*s;
+  const c = document.createElement('canvas'); c.width = c.height = N;
+  const g = c.getContext('2d');
+  g.fillStyle = '#35373a'; g.fillRect(0,0,N,N);
+  for(let i=0;i<60000;i++){ const v = 44+Math.random()*24|0; g.fillStyle = `rgba(${v},${v},${v+2},.5)`; g.fillRect(Math.random()*N, Math.random()*N, 2, 2); }
+  g.fillStyle = 'rgba(18,18,20,.3)';
+  for(let i=0;i<40;i++){ g.beginPath(); g.ellipse(Math.random()*N, Math.random()*N, rand(20,80), rand(10,40), Math.random()*3, 0, 7); g.fill(); }
+  // garis tengah putus-putus
+  g.fillStyle = 'rgba(225,225,215,.75)';
+  for(const r of ROADS) for(let t=-50; t<50; t+=6){
+    const mid = t+1.25; if(ROADS.some(q => Math.abs(mid-q) < RW+4.2)) continue;
+    g.fillRect(P(t), P(r)-.09*s, 2.5*s, .18*s);
+    g.fillRect(P(r)-.09*s, P(t), .18*s, 2.5*s);
+  }
+  // garis tepi tipis
+  g.fillStyle = 'rgba(238,236,248,.3)';
+  for(const r of ROADS) for(const sg of [-1,1]){ const e = r + sg*(RW-.35);
+    for(const [a,b] of [[-50,-33],[-23,-5],[5,23],[33,50]]){
+      g.fillRect(P(a), P(e)-.06*s, (b-a)*s, .12*s); g.fillRect(P(e)-.06*s, P(a), .12*s, (b-a)*s); } }
+  // zebra cross di setiap persimpangan
+  g.fillStyle = 'rgba(228,228,218,.8)';
+  for(const cx of ROADS) for(const cz of ROADS) for(const sg of [-1,1]){
+    const xa = cx + (sg > 0 ? RW+.8 : -RW-3.4);
+    for(let z = cz-RW+.6; z < cz+RW-.6; z += 1.05) g.fillRect(P(xa), P(z), 2.6*s, .55*s);
+    const za = cz + (sg > 0 ? RW+.8 : -RW-3.4);
+    for(let x = cx-RW+.6; x < cx+RW-.6; x += 1.05) g.fillRect(P(x), P(za), .55*s, 2.6*s);
+  }
+  // tutup gorong-gorong
+  for(const [x,z] of [[9,2],[-12,-2.5],[2.5,-17],[-30,12],[16,-27],[30,-9],[-2,33]]){
+    g.fillStyle = '#25272a'; g.beginPath(); g.arc(P(x), P(z), .45*s, 0, 7); g.fill();
+    g.strokeStyle = '#46494d'; g.lineWidth = 2; g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+let ground = null;
+function makeGround(tex, outerColor){
+  ground = new THREE.Mesh(new THREE.PlaneGeometry(100,100), new THREE.MeshStandardMaterial({map:tex, roughness:.95}));
+  ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; LV.add(ground);
+  const og = new THREE.Mesh(new THREE.PlaneGeometry(400,400), MS(outerColor));
+  og.rotation.x = -Math.PI/2; og.position.y = -.02; LV.add(og);
+}
+
+/* ---- tekstur pendukung ---- */
+function canvasTex(w, h, draw){ const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; }
+const paveTex = canvasTex(128,128,(g,w,h) => {
+  g.fillStyle = '#66696d'; g.fillRect(0,0,w,h);
+  for(let i=0;i<900;i++){ const v = 92+Math.random()*25|0; g.fillStyle = `rgba(${v},${v},${v+3},.35)`; g.fillRect(Math.random()*w, Math.random()*h, 2, 2); }
+  g.strokeStyle = 'rgba(40,41,44,.6)'; g.lineWidth = 2; g.strokeRect(1,1,w-2,h-2);
+});
+const poolTex = canvasTex(128,128,(g,w,h) => {
+  const gr = g.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);
+  gr.addColorStop(0,'rgba(255,255,255,.9)'); gr.addColorStop(.45,'rgba(255,255,255,.35)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0,0,w,h);
+});
+const stripeTex = canvasTex(128,32,(g,w,h) => {
+  g.fillStyle = '#ece8f0'; g.fillRect(0,0,w,h); g.fillStyle = '#e0702a';
+  for(let x=-32; x<w; x+=32){ g.beginPath(); g.moveTo(x,h); g.lineTo(x+16,h); g.lineTo(x+32,0); g.lineTo(x+16,0); g.fill(); }
+});
+const facadeCache = {};
+function facade(base){
+  if(facadeCache[base]) return facadeCache[base];
+  const lit = [];
+  const hex = '#' + base.toString(16).padStart(6,'0');
+  const draw = emissive => (g,w,h) => {
+    g.fillStyle = emissive ? '#000' : hex; g.fillRect(0,0,w,h);
+    for(let r=0;r<4;r++) for(let c=0;c<4;c++){
+      const i = r*4+c; if(lit[i] === undefined) lit[i] = Math.random() < .3;
+      const x = c*64+16, y = r*64+14;
+      if(!emissive){ g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, r*64+58, w, 6);
+        g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(x-3, y-3, 38, 46); }
+      g.fillStyle = lit[i] ? '#ffd39a' : (emissive ? '#000' : '#1c1f26'); g.fillRect(x, y, 32, 40);
+      if(!emissive){ g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(x+15, y, 2, 40); }
+    }
+  };
+  return facadeCache[base] = {map:canvasTex(256,256,draw(false)), emi:canvasTex(256,256,draw(true))};
+}
+function faceMat(base, faceW, h){
+  const f = facade(base), map = f.map.clone(), emi = f.emi.clone();
+  for(const t of [map, emi]){ t.needsUpdate = true; t.repeat.set(Math.max(.25, faceW/16), Math.max(.25, h/14)); }
+  const m = new THREE.MeshStandardMaterial({map, emissiveMap:emi, emissive:0xffffff, emissiveIntensity:.85, roughness:.9});
+  m.userData.own = true; return m;
+}
+
+/* ---- elemen kota ---- */
+function tree(x, z, s){
+  s = s || srange(.8,1.2);
+  const tr = new THREE.Mesh(new THREE.CylinderGeometry(.14*s,.2*s,2.4*s,6), MAT.trunk);
+  tr.position.set(x,1.2*s,z); tr.castShadow = true; LV.add(tr); solidMeshes.push(tr);
+  const leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(1.6*s,0), spick(leafMats));
+  leaf.position.set(x, 3.2*s, z); leaf.scale.y = 1.25; leaf.rotation.set(srand()*3, srand()*3, 0); leaf.castShadow = true; LV.add(leaf);
+  if(srand() < .5){ const l2 = new THREE.Mesh(new THREE.IcosahedronGeometry(1.1*s,0), spick(leafMats));
+    l2.position.set(x+srange(-.6,.6), 4.3*s, z+srange(-.6,.6)); l2.castShadow = true; LV.add(l2); }
+  collider(x, z, .5, .5, 4);
+}
+function fenceSeg(xa, za, xb, zb){
+  const alongX = Math.abs(xb-xa) > Math.abs(zb-za), L = alongX ? Math.abs(xb-xa) : Math.abs(zb-za);
+  if(L < .4) return;
+  const cx = (xa+xb)/2, cz = (za+zb)/2;
+  for(const y of [.35,.75]) blk(cx, y, cz, alongX?L:.07, .09, alongX?.07:L, MAT.fence, {solid:true});
+  const n = Math.max(1, Math.round(L/1.4));
+  for(let i=0;i<=n;i++){ const t = i/n; blk(lerp(xa,xb,t), 0, lerp(za,zb,t), .14, 1.0, .14, MAT.fence, {solid:true}); }
+  collider(cx, cz, alongX?L:.25, alongX?.25:L, 1.0);
+}
+// pagar keliling persegi, gates = sisi yang diberi celah {n,s,e,w}
+function fenceRect(x0, z0, x1, z1, gates){
+  const G = 1.6;
+  const side = (ax,az,bx,bz,gate) => {
+    if(!gate) return fenceSeg(ax,az,bx,bz);
+    const mx = (ax+bx)/2, mz = (az+bz)/2, alongX = ax !== bx;
+    fenceSeg(ax, az, alongX ? mx-G : mx, alongX ? mz : mz-G);
+    fenceSeg(alongX ? mx+G : mx, alongX ? mz : mz+G, bx, bz);
+  };
+  side(x0,z0,x1,z0,gates.n); side(x0,z1,x1,z1,gates.s); side(x0,z0,x0,z1,gates.w); side(x1,z0,x1,z1,gates.e);
+}
+function bench(x, z, alongX){
+  const w = alongX ? 1.8 : .55, d = alongX ? .55 : 1.8;
+  blk(x, .42, z, w, .08, d, MAT.bench, {solid:true});
+  blk(alongX ? x : x + .25, .5, alongX ? z + .25 : z, alongX ? 1.8 : .08, .45, alongX ? .08 : 1.8, MAT.bench, {solid:true});
+  for(const s of [-1,1]) blk(alongX ? x+s*.75 : x, 0, alongX ? z : z+s*.75, alongX?.1:.45, .42, alongX?.45:.1, MAT.dark);
+  collider(x, z, w, d, .55);
+}
+const bin = (x,z) => { blk(x,0,z,.55,.85,.55,MAT.bin,{collide:true}); blk(x,.85,z,.62,.08,.62,MAT.dark); };
+const hydrant = (x,z) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(.16,.2,.75,7), MAT.hydrant); m.position.set(x,.38,z); m.castShadow = true; LV.add(m); collider(x,z,.4,.4,.8); };
+
+let lightBudget = 6;
+const lampSpots = [];
+// lampu jalan nyata untuk lampu terdekat dari tengah; sisanya cukup genangan cahaya palsu
+function lightLamps(color){
+  lampSpots.sort((a,b) => Math.hypot(a.x,a.z) - Math.hypot(b.x,b.z)).slice(0, LOW_GFX ? Math.min(3, lightBudget) : lightBudget).forEach(s => {
+    const l = new THREE.PointLight(color || 0xffb866, 1.4, 16, 2); l.position.set(s.x, s.y, s.z); LV.add(l);
+  });
+}
+function streetLamp(x, z, tx, tz){
+  const H = 6.6, ang = Math.atan2(tx-x, tz-z), L = 2.6;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.09,.13,H,7), MAT.pole);
+  pole.position.set(x, H/2, z); pole.castShadow = true; LV.add(pole); solidMeshes.push(pole);
+  blk(x, 0, z, .35, .4, .35, MAT.poleDk);
+  const hx = x + Math.sin(ang)*L, hz = z + Math.cos(ang)*L;
+  const arm = new THREE.Mesh(unitBox, MAT.pole); arm.scale.set(.1,.1,L); arm.position.set((x+hx)/2, H-.1, (z+hz)/2); arm.rotation.y = ang; LV.add(arm);
+  const headM = new THREE.Mesh(unitBox, MAT.pole); headM.scale.set(.45,.16,.9); headM.position.set(hx, H-.22, hz); headM.rotation.y = ang; LV.add(headM);
+  const bulb = new THREE.Mesh(unitBox, MAT.lampHead); bulb.scale.set(.32,.04,.7); bulb.position.set(hx, H-.31, hz); bulb.rotation.y = ang; LV.add(bulb);
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(8,8), new THREE.MeshBasicMaterial({map:poolTex, color:0xffc27a, transparent:true, opacity:.5,
+    blending:THREE.AdditiveBlending, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-1}));
+  pool.rotation.x = -Math.PI/2; pool.position.set(hx, .03, hz); LV.add(pool);
+  lampSpots.push({x:hx, z:hz, y:H-.5});
+  collider(x, z, .35, .35, H);
+}
+function trafficLight(x, z, ax, az){   // (ax,az) = arah lengan di atas jalan (sumbu x atau z)
+  const H = 5.2, L = 4.2;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.1,.13,H,7), MAT.poleDk);
+  pole.position.set(x, H/2, z); pole.castShadow = true; LV.add(pole); solidMeshes.push(pole);
+  blk(x + ax*L/2, H-.25, z + az*L/2, ax ? L : .1, .1, az ? L : .1, MAT.poleDk);
+  const sx = x + ax*(L-.4), sz = z + az*(L-.4);
+  blk(sx, H-1.45, sz, .42, 1.2, .42, MAT.sigBox);
+  // lampu menghadap jalan yang tegak lurus lengan
+  const fx = az ? 0 : 0, red = srand() < .5;
+  const lamps = [[MAT.red, H-.6], [MAT.amber, H-.95], [MAT.green, H-1.3]];
+  lamps.forEach(([m, y], i) => {
+    const on = (i === 0 && red) || (i === 2 && !red);
+    for(const s of [-1,1]){
+      const px = az ? sx + s*.22 : sx, pz = ax ? sz + s*.22 : sz;
+      blk(px, y-.12, pz, az ? .04 : .24, .24, ax ? .04 : .24, on ? m : MAT.sigOff, {shadow:false});
+    }
+  });
+  // lampu penyeberang kecil di tiang
+  blk(x, 2.4, z, .32, .42, .32, MAT.sigBox); blk(x, 2.5, z, .34, .2, .34, red ? MAT.green : MAT.red, {shadow:false});
+  collider(x, z, .35, .35, H);
+}
+
+/* ---- kendaraan (diam) ---- */
+function vehicle(type, x0, z0, axis, sg, color){
+  const body = MS(color, {roughness:.45, metalness:.2});
+  const tf = (lx, lz) => { lx *= sg; lz *= sg; return axis === 'x' ? [x0+lx, z0+lz] : [x0-lz, z0+lx]; };
+  const P = (lx, y0, lz, w, h, d, mat, solid) => { const [wx,wz] = tf(lx,lz);
+    return blk(wx, y0, wz, axis==='x'?w:d, h, axis==='x'?d:w, mat, {solid:solid !== false}); };
+  const C = (lx, lz, w, d, top) => { const [wx,wz] = tf(lx,lz); collider(wx, wz, axis==='x'?w:d, axis==='x'?d:w, top); };
+  const wheel = (lx, lz, r) => { const [wx,wz] = tf(lx,lz);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, .3, 10), MAT.tire);
+    if(axis === 'x') m.rotation.x = Math.PI/2; else m.rotation.z = Math.PI/2;
+    m.position.set(wx, r, wz); m.castShadow = true; LV.add(m); };
+  const lights = (fx, y, hw, rx) => { for(const s of [-1,1]){ P(fx, y, s*hw, .06, .14, .32, MAT.head, false); P(rx, y+.05, s*hw, .06, .14, .28, MAT.tail, false); } };
+  if(type === 'sedan'){
+    P(0,.3,0, 4.4,.62,1.9, body); P(-.25,.92,0, 2.3,.5,1.72, MAT.glass); P(-.25,1.42,0, 2.1,.08,1.62, body);
+    P(1.6,.92,0, .9,.06,1.8, body);
+    lights(2.2,.6,.62,-2.2); for(const a of [1.35,-1.35]) for(const b of [-.92,.92]) wheel(a,b,.34);
+    C(0,0,4.4,1.9,.95); C(-.25,0,2.3,1.72,1.5);
+  } else if(type === 'pickup'){
+    P(0,.35,0, 5.3,.6,2.0, body); P(.85,.95,0, 1.9,.6,1.9, MAT.glass); P(.85,1.55,0, 1.8,.08,1.82, body);
+    for(const s of [-1,1]) P(-1.35,.95,s*.95, 2.6,.4,.1, body); P(-2.6,.95,0, .1,.4,2.0, body);
+    lights(2.65,.65,.65,-2.65); for(const a of [1.7,-1.6]) for(const b of [-.95,.95]) wheel(a,b,.38);
+    C(0,0,5.3,2.0,.98); C(.85,0,1.9,1.9,1.63);
+  } else if(type === 'jeep'){
+    P(0,.45,0, 4.0,.7,1.9, body); P(1.55,1.15,0, .9,.05,1.8, body);
+    P(.55,1.15,0, .08,.6,1.7, MAT.glass);
+    for(const a of [.5,-1.55]) for(const s of [-1,1]) P(a,1.15,s*.86, .08,.68,.08, MAT.dark);
+    P(-.5,1.8,0, 2.15,.08,1.8, MAT.dark); P(-2.08,.6,0, .2,.62,.62, MAT.tire);
+    lights(2.0,.85,.65,-2.0); for(const a of [1.25,-1.25]) for(const b of [-.98,.98]) wheel(a,b,.45);
+    C(0,0,4.0,1.9,1.15); C(-.5,0,2.15,1.8,1.9);
+  } else if(type === 'boxtruck'){
+    P(0,.5,0, 8.6,.35,2.3, MAT.dark); P(3.2,.85,0, 2.0,1.6,2.3, body);
+    P(4.21,1.55,0, .04,.7,2.0, MAT.glass, false); for(const s of [-1,1]) P(3.45,1.6,s*1.16, 1.0,.55,.04, MAT.glass, false);
+    P(-1.05,.85,0, 6.4,2.5,2.5, MS(0x4e5258));
+    lights(4.22,1.05,.85,-4.26); for(const a of [3.0,-2.2,-3.3]) for(const b of [-1.05,1.05]) wheel(a,b,.5);
+    C(3.2,0,2.0,2.3,2.45); C(-1.05,0,6.4,2.5,3.35);
+  } else if(type === 'flatbed'){
+    P(0,.55,0, 9,.4,1.0, MAT.dark); P(0,.95,0, 10,.25,2.5, MS(0x6c6f73));
+    for(const s of [-1,1]) P(0,.95,s*1.27, 10,.25,.06, MAT.orange);
+    for(const s of [-1,1]) P(3.2,0,s*.8, .15,.95,.15, MAT.dark);
+    for(const a of [-3,-4.1]) for(const b of [-1.05,1.05]) wheel(a,b,.48);
+    P(-2,1.2,0, 2,1.2,2, MAT.crate); P(1.6,1.2,.1, 1.4,.9,1.6, MAT.crate);
+    C(0,0,10,2.5,1.2); C(-2,0,2,2,2.4); C(1.6,.1,1.4,1.6,2.1);
+  }
+}
+
+/* ---- isi blok ---- */
+const BLOCK_TYPE = [   // [indeks x][indeks z]
+  ['house',   'building','parking', 'house'],
+  ['building','park',    'building','park'],
+  ['park',    'building','house',   'building'],
+  ['house',   'parking', 'building','house'],
+];
+const BUILD_COLORS = [0x7a5048, 0x8e6656, 0x56767a, 0x6e6a60, 0x8a7258, 0x5e6878];
+const HOUSE_COLORS = [0xa88272, 0xb09a7c, 0x8496a0, 0x9a8a78];
+const ACCENTS = [0xff5fa2, 0x37d6c4, 0xffb347];
+// sisi lot yang paling dekat ke jalan: {n,s,w,e}
+function roadSide(x0,z0,x1,z1){
+  const d = {w: Math.min(...ROADS.map(r => Math.abs(x0-r))), e: Math.min(...ROADS.map(r => Math.abs(x1-r))),
+             n: Math.min(...ROADS.map(r => Math.abs(z0-r))), s: Math.min(...ROADS.map(r => Math.abs(z1-r)))};
+  return Object.keys(d).reduce((a,k) => d[k] < d[a] ? k : a, 'n');
+}
+function building(x0,z0,x1,z1){
+  const w = x1-x0, d = z1-z0, cx = (x0+x1)/2, cz = (z0+z1)/2, h = srange(6,13);
+  const base = spick(BUILD_COLORS);
+  const mats = [faceMat(base,d,h), faceMat(base,d,h), MAT.roof, MAT.roof, faceMat(base,w,h), faceMat(base,w,h)];
+  blk(cx, 0, cz, w, h, d, mats, {collide:true});
+  blk(cx, h, cz, w+.3, .45, d+.3, MAT.trim);
+  for(let i=0;i<2;i++) blk(cx+srange(-w/3,w/3), h+.45, cz+srange(-d/3,d/3), srange(1,2), .9, srange(1,2), MAT.concrete);
+  // pintu toko + kanopi + papan nama menyala di sisi jalan
+  const side = roadSide(x0,z0,x1,z1), acc = MB(spick(ACCENTS));
+  const awn = MS(spick([0x37a6a0,0xc8504a,0xe0a03a]));
+  if(side === 'n' || side === 's'){ const z = side === 'n' ? z0 : z1, o = side === 'n' ? -1 : 1;
+    blk(cx, 0, z+o*.03, 1.8, 2.5, .08, MAT.dark); blk(cx, 2.8, z+o*.7, 4, .15, 1.4, awn); blk(cx, 3.15, z+o*.06, 3.4, .45, .08, acc, {shadow:false}); }
+  else { const x = side === 'w' ? x0 : x1, o = side === 'w' ? -1 : 1;
+    blk(x+o*.03, 0, cz, .08, 2.5, 1.8, MAT.dark); blk(x+o*.7, 2.8, cz, 1.4, .15, 4, awn); blk(x+o*.06, 3.15, cz, .08, .45, 3.4, acc, {shadow:false}); }
+  return {h, cx, cz, w, d};
+}
+function house(x0,z0,x1,z1){
+  const lw = x1-x0, ld = z1-z0, cx = (x0+x1)/2, cz = (z0+z1)/2;
+  const w = Math.min(lw-3.5, 8), d = Math.min(ld-4, 6.5), h = 3.4, base = spick(HOUSE_COLORS);
+  const hx = cx, hz = cz - .6;
+  blk(hx, 0, hz, w, h, d, [faceMat(base,d,h), faceMat(base,d,h), MAT.roof, MAT.roof, faceMat(base,w,h), faceMat(base,w,h)], {collide:true});
+  const sh = new THREE.Shape(); sh.moveTo(-w/2-.35,0); sh.lineTo(w/2+.35,0); sh.lineTo(0,1.9); sh.lineTo(-w/2-.35,0);
+  const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, {depth:d+.6, bevelEnabled:false}), MAT.houseRoof);
+  roof.position.set(hx, h, hz-(d+.6)/2); roof.castShadow = true; LV.add(roof);
+  blk(hx, 0, hz+d/2+.05, 1.3, 2.3, .1, MAT.dark);   // pintu
+  blk(hx, 0, hz+d/2+.8, 2.6, .2, 1.5, MAT.concrete);   // teras
+  fenceRect(x0+.4, z0+.4, x1-.4, z1-.4, {[roadSide(x0,z0,x1,z1)]:true, s:true});
+  tree(x0+1.6, z1-1.6); tree(x1-1.6, z0+1.6, srange(.7,1));
+  bin(x1-1.2, z1-1.0);
+}
+function park(x0,z0,x1,z1){
+  const cx = (x0+x1)/2, cz = (z0+z1)/2;
+  fenceRect(x0+.4, z0+.4, x1-.4, z1-.4, {n:true, s:true, e:true, w:true});
+  const spots = [];
+  for(let i=0;i<14 && spots.length<5;i++){
+    const x = srange(x0+2, x1-2), z = srange(z0+2, z1-2);
+    if(Math.hypot(x-cx, z-cz) < 2.8 || spots.some(p => Math.hypot(p[0]-x, p[1]-z) < 3.4)) continue;
+    spots.push([x,z]); tree(x, z);
+  }
+  bench(cx, z0+1.6, true); bench(x0+1.6, cz, false);
+  // ayunan
+  const sx = cx + (srand() < .5 ? -1 : 1)*Math.min(3, (x1-x0)/4), sz = cz;
+  for(const a of [-1.4,1.4]) for(const b of [-.6,.6]) blk(sx+a, 0, sz+b, .12, 2.4, .12, MAT.poleDk, {solid:true});
+  blk(sx, 2.4, sz, 3, .12, .14, MAT.poleDk);
+  for(const a of [-.6,.6]){ blk(sx+a, 1.0, sz, .03, 1.4, .03, MAT.pole); blk(sx+a, .55, sz, .6, .06, .3, MAT.orange); }
+  collider(sx-1.4, sz, .3, 1.4, 2.4); collider(sx+1.4, sz, .3, 1.4, 2.4);
+  bin(x1-1, z0+1);
+}
+function parking(x0,z0,x1,z1){
+  const lineM = MB(0xc8c8be);
+  for(let x = x0+1; x <= x1-1; x += 2.8){
+    blk(x, .135, z0+2.6, .1, .01, 4.4, lineM, {shadow:false});
+    blk(x, .135, z1-2.6, .1, .01, 4.4, lineM, {shadow:false});
+  }
+  const slots = []; for(let x = x0+1; x+2.8 <= x1-1; x += 2.8){ slots.push([x+1.4, z0+2.6, -1]); slots.push([x+1.4, z1-2.6, 1]); }
+  let n = 0;
+  for(const [x,z,s] of slots){ if(srand() < .4 && n < 4){ n++; vehicle(spick(['sedan','sedan','pickup','jeep']), x, z, 'z', s, spick([0xe6e3ee,0x4a6ab0,0x5a5f6a,0x9a9aa8,0xc23a2e])); } }
+}
+
+function buildCity(){
+  makeGround(cityGroundTexture(), 0x26282b);
+for(let i=0;i<4;i++) for(let j=0;j<4;j++){
+  let [x0,x1] = SPANS[i], [z0,z1] = SPANS[j];
+  // trotoar (sisi luar area diperpanjang supaya kota tidak terputus)
+  const vx0 = x0 === -46 ? -50 : x0, vx1 = x1 === 46 ? 50 : x1, vz0 = z0 === -46 ? -50 : z0, vz1 = z1 === 46 ? 50 : z1;
+  blk((vx0+vx1)/2, 0, (vz0+vz1)/2, vx1-vx0, .1, vz1-vz0, MAT.curb, {shadow:false});
+  const pm = new THREE.MeshStandardMaterial({map:paveTex.clone(), roughness:.9}); pm.map.needsUpdate = true; pm.map.repeat.set((vx1-vx0-.4)/2, (vz1-vz0-.4)/2);
+  blk((vx0+vx1)/2, .1, (vz0+vz1)/2, vx1-vx0-.4, .02, vz1-vz0-.4, pm, {shadow:false});
+  const lx0 = x0+2.6, lx1 = x1-2.6, lz0 = z0+2.6, lz1 = z1-2.6, type = BLOCK_TYPE[i][j];
+  const surf = type === 'parking' ? MAT.lot : type === 'park' ? (srand() < .5 ? MAT.grass : MAT.dirt) : type === 'house' ? MAT.grass : MAT.curb;
+  blk((lx0+lx1)/2, .1, (lz0+lz1)/2, lx1-lx0, .03, lz1-lz0, surf, {shadow:false});
+  if(type === 'building') building(lx0+.4, lz0+.4, lx1-.4, lz1-.4);
+  else if(type === 'house') house(lx0, lz0, lx1, lz1);
+  else if(type === 'park') park(lx0, lz0, lx1, lz1);
+  else parking(lx0, lz0, lx1, lz1);
+  // pohon & perabot trotoar
+  if(type !== 'park' && (x1-x0) > 15){ const tz = srand() < .5 ? z0+1.2 : z1-1.2; tree((x0+x1)/2 + srange(-3,3), tz, srange(.7,.9)); }
+  if(srand() < .5) hydrant(x0+1, (z0+z1)/2 + srange(-3,3));
+}
+
+// lampu jalan & lampu lalu lintas di sudut setiap persimpangan
+for(const cx of ROADS) for(const cz of ROADS){
+  const corners = [[1,1],[-1,-1],[1,-1],[-1,1]];
+  corners.forEach(([sx,sz], k) => {
+    const x = cx + sx*(RW+1.0), z = cz + sz*(RW+1.0);
+    if(Math.abs(x) > 46 || Math.abs(z) > 46) return;
+    if(k < 2) streetLamp(x, z, cx + sx*1.5, cz + sz*1.5);
+    else trafficLight(x, z, k === 2 ? -sx : 0, k === 2 ? 0 : -sz);
+  });
+}
+lightLamps();
+
+// kendaraan parkir di pinggir jalan (posisi, sumbu, arah, jenis, warna)
+[
+  [ 14,   3.6, 'x', -1, 'boxtruck', 0xd9d6e2],
+  [-14,  -3.6, 'x',  1, 'sedan',    0xe6e3ee],
+  [-14, -24.4, 'x',  1, 'flatbed',  0x6c6f73],
+  [-3.6,  15,  'z', -1, 'jeep',     0xc23a2e],
+  [ 3.6, -14,  'z',  1, 'pickup',   0xd8d2c4],
+  [ 14,  31.6, 'x', -1, 'sedan',    0x4a6ab0],
+  [ 31.6,-14,  'z',  1, 'boxtruck', 0xcfcbd8],
+  [-24.4, 14,  'z', -1, 'sedan',    0x5a5f6a],
+  [ 40,  -3.6, 'x',  1, 'sedan',    0x9a9aa8],
+  [ 3.6, -40,  'z',  1, 'jeep',     0x3f6f5a],
+  [-40,   3.6, 'x', -1, 'pickup',   0x8a4a3a],
+].forEach(([x,z,ax,sg,t,c]) => vehicle(t, x, z, ax, sg, c));
+
+// penghalang jalan di batas area
+for(const r of ROADS) for(const s of [-1,1]){
+  for(const o of [-2.4, 2.4]){
+    const m1 = new THREE.MeshStandardMaterial({map:stripeTex, roughness:.7});
+    if(true){ blk(s*45.4, 0, r+o, .6, 1.0, 4.4, [MAT.concrete,MAT.concrete,MAT.concrete,MAT.concrete,m1,m1], {collide:true});
+              blk(r+o, 0, s*45.4, 4.4, 1.0, .6, [m1,m1,MAT.concrete,MAT.concrete,MAT.concrete,MAT.concrete], {collide:true}); }
+  }
+}
+
+// deretan gedung di luar area (latar, tanpa tabrakan)
+for(const s of [-1,1]) for(const alongX of [true,false]){
+  for(let t=-62; t<62;){
+    const w = srange(7,13); const mid = t + w/2;
+    if(ROADS.some(r => Math.abs(mid - r) < RW + w/2 + .5)){ t += 2; continue; }
+    const h = srange(8,22), base = spick(BUILD_COLORS), dd = 10;
+    const x = alongX ? mid : s*(51+dd/2), z = alongX ? s*(51+dd/2) : mid;
+    const W = alongX ? w : dd, D = alongX ? dd : w;
+    blk(x, 0, z, W-.6, h, D, [faceMat(base,D,h), faceMat(base,D,h), MAT.roof, MAT.roof, faceMat(base,W,h), faceMat(base,W,h)], {shadow:false});
+    t += w;
+  }
+}
+}
+
+/* ---------- area lain & pergantian level ---------- */
+// tanah 100×100 m dilukis di kanvas; draw(g, P, s) menerima konversi meter → piksel
+function groundCanvas(base, speck, draw){
+  const N = 2048, s = N/100, P = v => (v+50)*s;
+  const c = document.createElement('canvas'); c.width = c.height = N;
+  const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0,0,N,N);
+  for(let i=0;i<50000;i++){ g.fillStyle = speck(44+Math.random()*26|0); g.fillRect(Math.random()*N, Math.random()*N, 2, 2); }
+  if(draw) draw(g, P, s);
+  const t = new THREE.CanvasTexture(c); t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+// cari tempat kosong (tidak bertabrakan, tidak di tengah area awal pemain)
+function spotFree(x, z, w, d, pad, centerR){
+  if(Math.abs(x)+w/2 > ARENA-1.5 || Math.abs(z)+d/2 > ARENA-1.5) return false;
+  if(Math.hypot(x, z) < (centerR ?? 10)) return false;
+  return !boxes.some(b => x+w/2+pad > b.minX && x-w/2-pad < b.maxX && z+d/2+pad > b.minZ && z-d/2-pad < b.maxZ);
+}
+function scatter(n, w, d, pad, fn, opt){
+  opt = opt || {}; let k = 0;
+  for(let t=0; t<n*40 && k<n; t++){
+    const rot = opt.noRot ? false : srand() < .5, W = rot ? d : w, D = rot ? w : d;
+    const x = opt.x ? srange(opt.x[0], opt.x[1]) : srange(-ARENA+3, ARENA-3);
+    const z = opt.z ? srange(opt.z[0], opt.z[1]) : srange(-ARENA+3, ARENA-3);
+    if(spotFree(x, z, W, D, pad, opt.centerR)){ fn(x, z, rot); k++; }
+  }
+}
+const ribCache = {};
+function ribTex(color, horizontal){   // seng bergelombang / dinding kontainer
+  const key = color + (horizontal ? 'h' : 'v');
+  if(ribCache[key]) return ribCache[key];
+  const hex = '#' + color.toString(16).padStart(6,'0');
+  return ribCache[key] = canvasTex(64,64,(g,w,h) => {
+    g.fillStyle = hex; g.fillRect(0,0,w,h);
+    for(let i=0;i<8;i++){ g.fillStyle = 'rgba(0,0,0,.22)'; horizontal ? g.fillRect(0, i*8+5, w, 3) : g.fillRect(i*8+5, 0, 3, h);
+      g.fillStyle = 'rgba(255,255,255,.07)'; horizontal ? g.fillRect(0, i*8+1, w, 2) : g.fillRect(i*8+1, 0, 2, h); }
+    for(let i=0;i<30;i++){ g.fillStyle = 'rgba(70,40,20,.12)'; g.fillRect(Math.random()*w, Math.random()*h, 4, 6); }
+  });
+}
+function ribMat(color, faceW, faceH, horizontal){
+  const t = ribTex(color, horizontal).clone(); t.needsUpdate = true;
+  t.repeat.set(Math.max(.5, faceW/4), Math.max(.5, faceH/4));
+  const m = new THREE.MeshStandardMaterial({map:t, roughness:.75, metalness:.15}); m.userData.own = true; return m;
+}
+function textPanel(w, h, draw){
+  const t = canvasTex(w, h, draw); t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  const m = new THREE.MeshBasicMaterial({map:t}); m.userData.own = true; return m;
+}
+function lantern(x, z, color){   // lampu tiang pendek
+  blk(x, 0, z, .14, 2.6, .14, MAT.poleDk, {solid:true});
+  blk(x, 2.6, z, .42, .5, .42, MB(color || 0xffc070), {shadow:false});
+  blk(x, 3.1, z, .55, .1, .55, MAT.poleDk);
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(6,6), new THREE.MeshBasicMaterial({map:poolTex, color:color || 0xffb060, transparent:true, opacity:.4,
+    blending:THREE.AdditiveBlending, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-1}));
+  pool.rotation.x = -Math.PI/2; pool.position.set(x, .05, z); LV.add(pool);
+  lampSpots.push({x, z, y:2.8}); collider(x, z, .3, .3, 2.6);
+}
+
+/* ===== Kawasan Gudang ===== */
+function warehouse(cx, cz, w, d, color){
+  const h = 8;
+  const mats = [ribMat(color,d,h), ribMat(color,d,h), MAT.roof, MAT.roof, ribMat(color,w,h), ribMat(color,w,h)];
+  blk(cx, 0, cz, w, h, d, mats, {collide:true});
+  blk(cx, h, cz, w+.4, .35, d+.4, MAT.trim);
+  for(let i=0;i<3;i++) blk(cx + (i-1)*w/3.5, h+.35, cz, 2.2, .25, d*.6, MB(0x3a4250), {shadow:false});   // skylight
+  // sisi yang menghadap tengah: pintu gulung + dok bongkar muat
+  const alongX = Math.abs(cz) > Math.abs(cx);    // muka pintu di sisi z
+  const o = alongX ? -Math.sign(cz) : -Math.sign(cx);
+  const doorM = ribMat(0x5a5d60, 4, 4.5, true);
+  const n = Math.max(2, Math.floor((alongX ? w : d)/6));
+  for(let i=0;i<n;i++){
+    const t = ((i+.5)/n - .5) * (alongX ? w : d) * .85;
+    if(alongX){ blk(cx+t, 0, cz+o*(d/2+.03), 3.6, 4.5, .08, doorM); blk(cx+t, 4.9, cz+o*(d/2+.2), .6, .2, .3, MB(0xffd08a), {shadow:false}); }
+    else      { blk(cx+o*(w/2+.03), 0, cz+t, .08, 4.5, 3.6, doorM); blk(cx+o*(w/2+.2), 4.9, cz+t, .3, .2, .6, MB(0xffd08a), {shadow:false}); }
+  }
+  // dok beton setinggi 1,2 m (bisa dinaiki)
+  const dl = (alongX ? w : d) * .8;
+  if(alongX) blk(cx, 0, cz+o*(d/2+1.3), dl, 1.2, 2.6, MAT.concrete, {collide:true});
+  else       blk(cx+o*(w/2+1.3), 0, cz, 2.6, 1.2, dl, MAT.concrete, {collide:true});
+  // pita hazard di dasar dok
+  const hz = new THREE.MeshStandardMaterial({map:stripeTex, roughness:.7});
+  if(alongX) blk(cx, .2, cz+o*(d/2+2.62), dl, .35, .04, hz, {shadow:false});
+  else       blk(cx+o*(w/2+2.62), .2, cz, .04, .35, dl, hz, {shadow:false});
+  // lampu sorot di atas dok
+  const lx = alongX ? cx : cx+o*(w/2+5.5), lz = alongX ? cz+o*(d/2+5.5) : cz;
+  streetLamp(lx, lz, alongX ? cx : cx+o*(w/2+2), alongX ? cz+o*(d/2+2) : cz);
+}
+const CONTAINER_COLORS = [0x8a3a2a, 0x2f5a7a, 0x3f6a3a, 0xb8692a, 0x6a6a70, 0x7a2e3e];
+function container(x, z, rot, stacked){
+  const L = 6.1, W = 2.45, H = 2.6, w = rot ? W : L, d = rot ? L : W;
+  const add = (y0, color) => {
+    const side = ribMat(color, L, H), end = ribMat(color, W, H, true);
+    const mats = rot ? [side, side, MAT.roof, MAT.roof, end, end] : [end, end, MAT.roof, MAT.roof, side, side];
+    blk(x, y0, z, w, H, d, mats, {solid:true});
+  };
+  add(0, spick(CONTAINER_COLORS));
+  if(stacked) add(H, spick(CONTAINER_COLORS));
+  collider(x, z, w, d, stacked ? H*2 : H);
+  // peti di ujung sebagai pijakan untuk memanjat
+  if(!stacked && srand() < .6){ const ex = rot ? x : x + (L/2+.8)*(srand()<.5?-1:1), ez = rot ? z + (L/2+.8)*(srand()<.5?-1:1) : z;
+    if(spotFree(ex, ez, 1.3, 1.3, .1, 8)) blk(ex, 0, ez, 1.3, 1.3, 1.3, MAT.crate, {collide:true}); }
+}
+function drums(x, z){
+  const cols = [0x2e4f7a, 0x8a2e26, 0x4f5a2e];
+  for(let i=0;i<3;i++){
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,.9,10), MS(spick(cols),{roughness:.5,metalness:.4}));
+    const px = x + (i%2)*.65 - .3, pz = z + (i>1 ? .6 : 0) - .3;
+    m.position.set(px, .45, pz); m.castShadow = true; LV.add(m); solidMeshes.push(m);
+  }
+  collider(x, z, 1.4, 1.4, .9);
+}
+function buildIndustrial(){
+  makeGround(groundCanvas('#38393a', v => `rgba(${v},${v},${v-3},.45)`, (g,P,s) => {
+    g.strokeStyle = 'rgba(18,18,18,.55)'; g.lineWidth = 2;
+    for(let t=-48; t<=48; t+=8){ g.beginPath(); g.moveTo(P(t),0); g.lineTo(P(t),2048); g.moveTo(0,P(t)); g.lineTo(2048,P(t)); g.stroke(); }
+    g.fillStyle = 'rgba(8,8,10,.4)';
+    for(let i=0;i<40;i++){ g.beginPath(); g.ellipse(Math.random()*2048, Math.random()*2048, rand(10,50), rand(6,24), Math.random()*3, 0, 7); g.fill(); }
+    // jalur forklift kuning
+    g.fillStyle = 'rgba(214,166,40,.75)';
+    for(let t=-48; t<48; t+=3){ for(const o of [-3.4, 3.4]){ g.fillRect(P(t), P(o)-.08*s, 1.8*s, .16*s); g.fillRect(P(o)-.08*s, P(t), .16*s, 1.8*s); } }
+  }), 0x202123);
+  const W = [[-30,-30,22,16,0x4f6a78],[30,-30,18,20,0x7a5a44],[-30,30,20,18,0x5a6a52],[30,30,20,16,0x6a6466]];
+  W.forEach(([x,z,w,d,c]) => warehouse(x, z, w, d, c));
+  scatter(16, 6.1, 2.45, 2.2, (x,z,rot) => container(x, z, rot, srand() < .35), {centerR:11});
+  scatter(10, 1.3, 1.3, 1.5, (x,z) => { const hgt = spick([.5,.9,1.3]);
+    blk(x, 0, z, 1.3, hgt, 1.3, MS(0x8a7050), {collide:true}); blk(x, hgt, z, 1.2, .12, 1.2, MS(0x6a5438)); });
+  scatter(8, 1.4, 1.4, 1.5, (x,z) => drums(x, z));
+  scatter(2, 8.6, 2.5, 3, (x,z,rot) => vehicle('boxtruck', x, z, rot ? 'z' : 'x', srand()<.5?1:-1, spick([0xcfcbd8,0x9a8a6a])));
+  scatter(1, 10, 2.5, 3, (x,z,rot) => vehicle('flatbed', x, z, rot ? 'z' : 'x', 1, 0x6c6f73));
+  for(const [x,z] of [[0,-14],[0,14],[-14,0],[14,0]]) streetLamp(x + (x?Math.sign(x)*0:1.5), z + (z?0:1.5), 0, 0);
+  lightLamps(0xffb060);
+}
+
+/* ===== Pom Bensin Jalan Raya ===== */
+function buildGasStation(){
+  makeGround(groundCanvas('#3b3933', v => `rgba(${v+6},${v+2},${v-6},.4)`, (g,P,s) => {
+    // jalan raya 4 lajur di z -10..10
+    g.fillStyle = '#2d2e31'; g.fillRect(0, P(-10), 2048, 20*s);
+    for(let i=0;i<20000;i++){ const v = 40+Math.random()*18|0; g.fillStyle = `rgba(${v},${v},${v+2},.5)`; g.fillRect(Math.random()*2048, P(-10)+Math.random()*20*s, 2, 2); }
+    g.fillStyle = 'rgba(220,190,60,.85)'; for(const o of [-.25,.25]) g.fillRect(0, P(o)-.07*s, 2048, .14*s);
+    g.fillStyle = 'rgba(228,228,218,.8)';
+    for(const o of [-9.5, 9.5]) g.fillRect(0, P(o)-.08*s, 2048, .16*s);
+    for(let t=-50; t<50; t+=7) for(const o of [-4.9, 4.9]) g.fillRect(P(t), P(o)-.08*s, 3*s, .16*s);
+    // halaman beton pom bensin (utara) dan parkiran (selatan)
+    g.fillStyle = '#4c4d50'; g.fillRect(P(-32), P(-36), 46*s, 24*s);
+    g.strokeStyle = 'rgba(25,25,28,.6)'; g.lineWidth = 2;
+    for(let x=-32; x<=14; x+=4){ g.beginPath(); g.moveTo(P(x), P(-36)); g.lineTo(P(x), P(-12)); g.stroke(); }
+    for(let z=-36; z<=-12; z+=4){ g.beginPath(); g.moveTo(P(-32), P(z)); g.lineTo(P(14), P(z)); g.stroke(); }
+    g.fillStyle = '#2f3033'; g.fillRect(P(6), P(13), 36*s, 18*s);
+    g.fillStyle = 'rgba(220,220,210,.7)';
+    for(let x=7; x<=41; x+=3){ g.fillRect(P(x), P(13.5), .12*s, 5*s); g.fillRect(P(x), P(25.5), .12*s, 5*s); }
+  }), 0x2a2722);
+
+  // kanopi SPBU
+  const cx = -12, cz = -22, cw = 20, cd = 12;
+  for(const px of [-7,0,7]) for(const pz of [-3.5,3.5]){ blk(cx+px, 0, cz+pz, .6, 5, .6, MS(0xd8d8dc), {collide:true}); }
+  blk(cx, 5, cz, cw, .9, cd, MS(0xe8e8ec), {solid:true});
+  const band = MB(0xd23a2e);
+  blk(cx, 5.15, cz-cd/2-.03, cw+.1, .55, .06, band, {shadow:false}); blk(cx, 5.15, cz+cd/2+.03, cw+.1, .55, .06, band, {shadow:false});
+  blk(cx-cw/2-.03, 5.15, cz, .06, .55, cd+.1, band, {shadow:false}); blk(cx+cw/2+.03, 5.15, cz, .06, .55, cd+.1, band, {shadow:false});
+  for(const px of [-6,0,6]) for(const pz of [-3,3]) blk(cx+px, 4.95, cz+pz, 2.2, .05, .6, MB(0xf4f6ff), {shadow:false});
+  for(const px of [-6,6]){ const l = new THREE.PointLight(0xe8eeff, 1.3, 18, 2); l.position.set(cx+px, 4.6, cz); LV.add(l); }
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(24,16), new THREE.MeshBasicMaterial({map:poolTex, color:0xdfe6ff, transparent:true, opacity:.45,
+    blending:THREE.AdditiveBlending, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-1}));
+  pool.rotation.x = -Math.PI/2; pool.position.set(cx, .04, cz); LV.add(pool);
+  // pulau pompa
+  for(const px of [-7,0,7]){
+    blk(cx+px, 0, cz, 1.4, .25, 5, MAT.concrete);
+    for(const pz of [-1.3,1.3]){
+      blk(cx+px, .25, cz+pz, .8, 1.6, .6, MS(0xeeeeee), {solid:true});
+      blk(cx+px, 1.6, cz+pz, .82, .3, .62, MS(0xc8302a), {solid:true});
+      blk(cx+px, 1.1, cz+pz, .5, .3, .64, MB(0x7ad8ff), {shadow:false});
+    }
+    collider(cx+px, cz, 1.4, 5, 1.9);
+  }
+  // minimarket
+  const sx = 12, sz = -27, sw = 14, sd = 10, sh = 4.6;
+  const front = textPanel(512, 160, (g,w,h) => {
+    g.fillStyle = '#fff3d6'; g.fillRect(0,0,w,h);
+    g.fillStyle = 'rgba(120,90,60,.35)'; for(let i=0;i<5;i++) g.fillRect(20+i*100, 60, 70, 90);
+    g.fillStyle = '#5a5d62'; for(let x=0;x<=w;x+=128) g.fillRect(x-3,0,6,h); g.fillRect(0,0,w,8);
+  });
+  const wallM = faceMat(0x8a8e94, sw, sh);
+  blk(sx, 0, sz, sw, sh, sd, [faceMat(0x8a8e94,sd,sh), faceMat(0x8a8e94,sd,sh), MAT.roof, MAT.roof, front, wallM], {collide:true});
+  blk(sx, sh, sz, sw+.3, .9, sd+.3, MS(0x2a7a6e));
+  blk(sx, sh+.2, sz+sd/2+.18, sw*.7, .5, .05, MB(0xfff2c0), {shadow:false});
+  bin(sx-sw/2-1, sz+sd/2+1); bin(sx+sw/2+1, sz+sd/2+1);
+  blk(sx+sw/2-1.5, 0, sz+sd/2+1.2, 2.2, 1.0, 1.0, MS(0x2f6fb8), {collide:true});   // kotak es
+  // papan harga BBM
+  const px = -30, pz = -12.5;
+  blk(px, 0, pz, .4, 7, .4, MAT.poleDk, {collide:true});
+  const price = textPanel(256, 320, (g,w,h) => {
+    g.fillStyle = '#1b1d22'; g.fillRect(0,0,w,h); g.fillStyle = '#c8302a'; g.fillRect(0,0,w,70);
+    g.fillStyle = '#fff'; g.font = 'bold 44px sans-serif'; g.textAlign = 'center'; g.fillText('BBM', w/2, 50);
+    g.font = 'bold 40px monospace'; g.fillStyle = '#ffcf4a';
+    ['10.000','12.500','13.900'].forEach((t,i) => g.fillText(t, w/2, 130+i*70));
+  });
+  blk(px, 5, pz, 2.4, 3, .3, [MAT.dark, MAT.dark, MAT.dark, MAT.dark, price, price], {shadow:false});
+  // motel di seberang jalan (selatan-barat)
+  const mx = -24, mz = 32, mw = 30, md = 8, mh = 4;
+  blk(mx, 0, mz, mw, mh, md, [faceMat(0x9a6e58,md,mh), faceMat(0x9a6e58,md,mh), MAT.roof, MAT.roof, faceMat(0x9a6e58,mw,mh), faceMat(0x9a6e58,mw,mh)], {collide:true});
+  for(let i=0;i<8;i++){ const x = mx - mw/2 + 2 + i*3.6;
+    blk(x, 0, mz-md/2-.04, 1.1, 2.3, .08, MS(spick([0x3a5a6a,0x6a3a3a,0x3a4a3a])));
+    blk(x+.9, 2.0, mz-md/2-.05, .25, .25, .05, MB(0xffd08a), {shadow:false}); }
+  blk(mx, 3.2, mz-md/2-1.4, mw, .2, 2.8, MAT.trim);
+  for(let i=0;i<=5;i++) blk(mx - mw/2 + .5 + i*(mw-1)/5, 0, mz-md/2-2.6, .2, 3.2, .2, MAT.poleDk, {collide:true});
+  const neon = textPanel(256, 80, (g,w,h) => { g.fillStyle = '#120a14'; g.fillRect(0,0,w,h);
+    g.font = 'bold 56px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#ff5fa2'; g.shadowColor = '#ff5fa2'; g.shadowBlur = 16; g.fillText('MOTEL', w/2, 60); });
+  blk(mx+mw/2-4, mh, mz, 6, 1.8, .3, [MAT.dark,MAT.dark,MAT.dark,MAT.dark,neon,neon], {shadow:false});
+  // parkiran selatan-timur
+  for(const [x,z,sg,t,c] of [[11,16,-1,'sedan',0x4a6ab0],[17,16,-1,'pickup',0xd8d2c4],[26,28,1,'jeep',0xc23a2e],[35,28,1,'sedan',0xe6e3ee],[38,16,-1,'boxtruck',0xcfcbd8]])
+    vehicle(t, x, z, 'z', sg, c);
+  // kendaraan terbengkalai di jalan raya
+  for(const [x,z,ax,sg,t,c] of [[-22,-5,'x',1,'sedan',0x9a9aa8],[18,4.5,'x',-1,'boxtruck',0xd9d6e2],[30,-5.5,'z',1,'sedan',0x5a5f6a],
+    [-37,6,'x',-1,'pickup',0x8a4a3a],[38,-6,'x',1,'flatbed',0x6c6f73],[-12,6.5,'x',-1,'jeep',0x3f6f5a]]) vehicle(t, x, z, ax, sg, c);
+  // pembatas beton di bahu jalan (ada celah)
+  for(let x=-44; x<44; x+=9){ if(Math.abs(x+2.5) < 8) continue;
+    for(const zz of [-10.6, 10.6]) if(srand() < .7) blk(x+2.5, 0, zz, 5, .95, .6, MAT.concrete, {collide:true}); }
+  // lampu jalan sepanjang jalan raya
+  for(let x=-36; x<=36; x+=18){ streetLamp(x, -12, x, -7); streetLamp(x+9, 12, x+9, 7); }
+  // papan reklame
+  const bx = 34, bz = -24;
+  for(const o of [-3,3]) blk(bx+o, 0, bz, .35, 6, .35, MAT.poleDk, {collide:true});
+  const ad = textPanel(256, 104, (g,w,h) => { const gr = g.createLinearGradient(0,0,w,h); gr.addColorStop(0,'#2a4a6a'); gr.addColorStop(1,'#6a2a4a');
+    g.fillStyle = gr; g.fillRect(0,0,w,h); g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.arc(60,52,30,0,7); g.fill();
+    g.fillRect(110,30,120,12); g.fillRect(110,54,90,10); g.fillRect(110,74,100,10); });
+  blk(bx, 6, bz, 10, 4, .3, [MAT.dark,MAT.dark,MAT.dark,MAT.dark,ad,ad]);
+  // semak kering
+  scatter(14, 1, 1, 1, (x,z) => { if(Math.abs(z) < 12) return; const m = new THREE.Mesh(new THREE.IcosahedronGeometry(srange(.4,.8),0), MS(0x4a4a30));
+    m.position.set(x, .3, z); LV.add(m); }, {centerR:12});
+  scatter(5, .5, .5, 3, (x,z) => tree(x, z, srange(.7,1)), {z:[14,44]});
+  lightLamps(0xffb060);
+}
+
+/* ===== Pemakaman Tua ===== */
+function deadTree(x, z){
+  const s = srange(.8,1.3);
+  const tr = new THREE.Mesh(new THREE.CylinderGeometry(.12*s,.22*s,3.2*s,6), MS(0x3a3028));
+  tr.position.set(x, 1.6*s, z); tr.castShadow = true; LV.add(tr); solidMeshes.push(tr);
+  for(let i=0;i<4;i++){
+    const b = new THREE.Mesh(unitBox, MS(0x3a3028)); const L = srange(1,1.8)*s;
+    b.scale.set(.1*s, L, .1*s); const a = srand()*Math.PI*2;
+    b.position.set(x + Math.cos(a)*L*.35, (2+srand()*1.2)*s, z + Math.sin(a)*L*.35);
+    b.rotation.set(Math.sin(a)*.8, 0, -Math.cos(a)*.8); b.castShadow = true; LV.add(b);
+  }
+  collider(x, z, .5, .5, 3.5);
+}
+function gravestone(x, z){
+  const stone = spick([MS(0x7a7c78), MS(0x6a6c6e), MS(0x8a8680)]), type = srand();
+  const tilt = srange(-.08,.08);
+  let m;
+  if(type < .45){ m = blk(x, 0, z, .8, 1.0, .2, stone, {solid:true}); }
+  else if(type < .75){ m = blk(x, 0, z, .18, 1.3, .16, stone, {solid:true}); const c = blk(x, .8, z, .7, .18, .16, stone, {solid:true}); c.rotation.z = tilt; }
+  else { m = blk(x, 0, z, .7, .7, .22, stone, {solid:true});
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.22,10,1,false,0,Math.PI), stone);
+    top.rotation.x = Math.PI/2; top.rotation.z = Math.PI/2; top.position.set(x, .7, z); LV.add(top); }
+  m.rotation.z = tilt;
+  blk(x, 0, z+.5, .8, .12, 1.4, MS(0x3a3226), {shadow:false});   // gundukan
+  collider(x, z, .9, .35, 1.3);
+}
+function crypt(x, z){
+  const w = 4, d = 5, h = 3.2, stone = MS(0x7a7872);
+  blk(x, 0, z, w, h, d, stone, {collide:true});
+  const sh = new THREE.Shape(); sh.moveTo(-w/2-.3,0); sh.lineTo(w/2+.3,0); sh.lineTo(0,1.2); sh.lineTo(-w/2-.3,0);
+  const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, {depth:d+.6, bevelEnabled:false}), MS(0x5a5854));
+  roof.position.set(x, h, z-(d+.6)/2); roof.castShadow = true; LV.add(roof);
+  const face = Math.abs(x) > Math.abs(z) ? 'x' : 'z', o = face === 'x' ? -Math.sign(x) : -Math.sign(z);
+  for(const c of [-1.3,1.3]) face === 'z' ? blk(x+c, 0, z+o*(d/2+.4), .35, h, .35, stone) : blk(x+o*(w/2+.4), 0, z+c, .35, h, .35, stone);
+  face === 'z' ? blk(x, 0, z+o*(d/2+.03), 1.4, 2.2, .06, MAT.dark) : blk(x+o*(w/2+.03), 0, z, .06, 2.2, 1.4, MAT.dark);
+}
+function buildCemetery(){
+  makeGround(groundCanvas('#262d22', v => `rgba(${v-10},${v},${v-16},.45)`, (g,P,s) => {
+    g.fillStyle = '#463c2f';
+    g.fillRect(P(-2.2), 0, 4.4*s, 2048); g.fillRect(0, P(-2.2), 2048, 4.4*s);
+    g.strokeStyle = '#463c2f'; g.lineWidth = 3.4*s; g.beginPath(); g.arc(P(0), P(0), 22*s, 0, 7); g.stroke();
+    g.fillStyle = 'rgba(60,52,40,.6)';
+    for(let i=0;i<70;i++){ g.beginPath(); g.ellipse(Math.random()*2048, Math.random()*2048, rand(8,30), rand(6,20), Math.random()*3, 0, 7); g.fill(); }
+  }), 0x161a14);
+  // tembok batu keliling dengan gerbang di ujung jalan setapak
+  const wallM = MS(0x55524c);
+  for(const s of [-1,1]) for(let t=-45; t<45; t+=6){
+    if(Math.abs(t+3) < 4) continue;
+    blk(t+3, 0, s*45.6, 6, 1.8, .6, wallM, {collide:true}); blk(s*45.6, 0, t+3, .6, 1.8, 6, wallM, {collide:true});
+    blk(t, 0, s*45.6, .9, 2.3, .9, wallM); blk(s*45.6, 0, t, .9, 2.3, .9, wallM);
+  }
+  // kapel dengan menara lonceng
+  const kx = -32, kz = -32, kw = 10, kd = 14, kh = 6;
+  blk(kx, 0, kz, kw, kh, kd, [faceMat(0x6e6a62,kd,kh), faceMat(0x6e6a62,kd,kh), MAT.roof, MAT.roof, faceMat(0x6e6a62,kw,kh), faceMat(0x6e6a62,kw,kh)], {collide:true});
+  const sh = new THREE.Shape(); sh.moveTo(-kw/2-.4,0); sh.lineTo(kw/2+.4,0); sh.lineTo(0,3.4); sh.lineTo(-kw/2-.4,0);
+  const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, {depth:kd+.8, bevelEnabled:false}), MS(0x3a2e2e));
+  roof.position.set(kx, kh, kz-(kd+.8)/2); roof.castShadow = true; LV.add(roof);
+  blk(kx, 0, kz+kd/2+1.5, 3.2, 12, 3.2, MS(0x6e6a62), {collide:true});
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(2.6, 4, 4), MS(0x3a2e2e)); spire.rotation.y = Math.PI/4;
+  spire.position.set(kx, 14, kz+kd/2+1.5); spire.castShadow = true; LV.add(spire);
+  blk(kx, 8.5, kz+kd/2+3.12, 1.2, 1.8, .05, MB(0xffb35a), {shadow:false});
+  blk(kx+kw/2+.03, 1.5, kz-3, .05, 2.6, 1.2, MB(0x8a3a6a), {shadow:false}); blk(kx+kw/2+.03, 1.5, kz+2, .05, 2.6, 1.2, MB(0x3a5a8a), {shadow:false});
+  // makam keluarga
+  for(const [x,z] of [[30,-30],[34,22],[-30,30],[14,36],[-38,6]]) if(spotFree(x,z,4.5,5.5,1,10)) crypt(x, z);
+  // barisan nisan per kuadran, menyisakan jalan setapak
+  for(let x=-42; x<=42; x+=3) for(let z=-42; z<=42; z+=4.5){
+    const r = Math.hypot(x, z);
+    if(Math.abs(x) < 4 || Math.abs(z) < 4 || Math.abs(r-22) < 3 || r < 10) continue;
+    if(srand() < .62 && spotFree(x, z+.4, 1, 1.6, .6, 10)) gravestone(x + srange(-.3,.3), z);
+  }
+  // pohon mati, lentera, bangku
+  scatter(10, .6, .6, 2.5, (x,z) => deadTree(x, z), {centerR:12});
+  for(const [x,z] of [[3,12],[-3,-12],[12,-3],[-12,3],[3,32],[-3,-32],[32,3],[-32,-3]]) lantern(x, z, 0xffb060);
+  bench(0, 9.5, true); bench(0, -9.5, true); bench(9.5, 0, false); bench(-9.5, 0, false);
+  lightBudget = 5; lightLamps(0xffa850); lightBudget = 6;
+}
+
+/* ===== daftar area & pergantian ===== */
+const LEVELS = [
+  {name:'Persimpangan Kota',     build:() => buildCity(),        bg:0x0b0d10, fog:.030, sky:0x5a6478, gnd:0x15120f, hi:.5,  moon:0x9fb0d0, mi:.45},
+  {name:'Kawasan Gudang',        build:() => buildIndustrial(),  bg:0x0d0e0f, fog:.028, sky:0x5c6070, gnd:0x17140f, hi:.5,  moon:0xa8b0c0, mi:.4},
+  {name:'Pom Bensin Jalan Raya', build:() => buildGasStation(),  bg:0x0b0c12, fog:.022, sky:0x5a5e7a, gnd:0x1a1610, hi:.55, moon:0xa0a8d0, mi:.5},
+  {name:'Pemakaman Tua',         build:() => buildCemetery(),    bg:0x080c0a, fog:.040, sky:0x4a5a52, gnd:0x0f120e, hi:.45, moon:0xa8c8b8, mi:.45},
+];
+let levelIdx = -1, levelCycle = 0;
+function clearLevel(){
+  scene.remove(LV);
+  LV.traverse(o => {
+    if(o.geometry && o.geometry !== unitBox) o.geometry.dispose();
+    const ms = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+    for(const m of ms) if(m.userData && m.userData.own){ if(m.map) m.map.dispose(); if(m.emissiveMap) m.emissiveMap.dispose(); m.dispose(); }
+  });
+  LV = new THREE.Group(); scene.add(LV);
+  boxes.length = 0; solidMeshes.length = 0; lampSpots.length = 0;
+}
+function loadLevel(i, cycle){
+  clearLevel(); levelIdx = i; levelCycle = cycle || 0;
+  const L = LEVELS[i];
+  seed = 7 + i*131 + levelCycle*977;   // tiap putaran isi area sedikit berbeda
+  L.build();
+  scene.background.setHex(L.bg); scene.fog.color.setHex(L.bg); scene.fog.density = L.fog;
+  hemi.color.setHex(L.sky); hemi.groundColor.setHex(L.gnd); hemi.intensity = L.hi;
+  moon.color.setHex(L.moon); moon.intensity = L.mi;
+  navRebuild();
+  const el = document.getElementById('areaTxt'); if(el) el.textContent = L.name;
+}
+
+function collideCircle(p, r){
+  for(const b of boxes){
+    const cx = clamp(p.x,b.minX,b.maxX), cz = clamp(p.z,b.minZ,b.maxZ);
+    const dx = p.x-cx, dz = p.z-cz, d2 = dx*dx+dz*dz;
+    if(d2 < r*r){
+      if(d2 > 1e-8){ const d = Math.sqrt(d2); p.x = cx+dx/d*r; p.z = cz+dz/d*r; }
+      else {
+        const l=p.x-b.minX, rr=b.maxX-p.x, t=p.z-b.minZ, bt=b.maxZ-p.z, m=Math.min(l,rr,t,bt);
+        if(m===l) p.x=b.minX-r; else if(m===rr) p.x=b.maxX+r; else if(m===t) p.z=b.minZ-r; else p.z=b.maxZ+r;
+      }
+    }
+  }
+  p.x = clamp(p.x,-ARENA+r,ARENA-r); p.z = clamp(p.z,-ARENA+r,ARENA-r);
+}
+// Versi untuk pemain: rintangan yang puncaknya di bawah kaki tidak menghalangi (bisa berdiri di atasnya)
+function collidePlayer(p, r, feet){
+  for(const b of boxes){
+    if(b.h <= feet + .05) continue;
+    const cx = clamp(p.x,b.minX,b.maxX), cz = clamp(p.z,b.minZ,b.maxZ);
+    const dx = p.x-cx, dz = p.z-cz, d2 = dx*dx+dz*dz;
+    if(d2 < r*r){
+      if(d2 > 1e-8){ const d = Math.sqrt(d2); p.x = cx+dx/d*r; p.z = cz+dz/d*r; }
+      else { const l=p.x-b.minX, rr=b.maxX-p.x, t=p.z-b.minZ, bt=b.maxZ-p.z, m=Math.min(l,rr,t,bt);
+        if(m===l) p.x=b.minX-r; else if(m===rr) p.x=b.maxX+r; else if(m===t) p.z=b.minZ-r; else p.z=b.maxZ+r; }
+    }
+  }
+  p.x = clamp(p.x,-ARENA+r,ARENA-r); p.z = clamp(p.z,-ARENA+r,ARENA-r);
+}
+// tinggi pijakan di bawah pemain (0 = tanah)
+function floorAt(x, z, r, feet){
+  let f = 0;
+  for(const b of boxes){
+    if(b.h > feet + .05) continue;
+    if(x > b.minX - r && x < b.maxX + r && z > b.minZ - r && z < b.maxZ + r) f = Math.max(f, b.h);
+  }
+  return f;
+}
+function pointBlocked(x,z,r){
+  return boxes.some(b => x>b.minX-r && x<b.maxX+r && z>b.minZ-r && z<b.maxZ+r);
+}
+
+/* ---------- navigasi: flow field ----------
+   Area dipecah jadi grid 1×1 m. Dari sel pemain dihitung jarak tempuh ke setiap sel (Dijkstra, 8 arah,
+   tanpa memotong sudut rintangan). Zombie cukup bergerak ke sel tetangga yang jaraknya paling kecil,
+   jadi mereka otomatis memutari barikade lewat jalur terpendek. */
+const NAV = {cell:1, n:Math.round(ARENA*2), pc:-1, t:0};
+NAV.blocked = new Uint8Array(NAV.n*NAV.n);
+NAV.dist = new Float64Array(NAV.n*NAV.n).fill(Infinity);
+const NAV_PAD = .55;
+const cellOf = v => clamp(Math.floor((v + ARENA)/NAV.cell), 0, NAV.n-1);
+const cellCenter = i => -ARENA + (i + .5)*NAV.cell;
+function navRebuild(){
+  for(let cz=0; cz<NAV.n; cz++) for(let cx=0; cx<NAV.n; cx++)
+    NAV.blocked[cz*NAV.n+cx] = pointBlocked(cellCenter(cx), cellCenter(cz), NAV_PAD) ? 1 : 0;
+  NAV.pc = -1; NAV.t = 0;
+}
+
+const HD = [], HI = []; let popD = 0;
+function hpush(d,i){
+  let k = HD.length; HD.push(d); HI.push(i);
+  while(k > 0){ const p = (k-1)>>1; if(HD[p] <= d) break; HD[k] = HD[p]; HI[k] = HI[p]; k = p; }
+  HD[k] = d; HI[k] = i;
+}
+function hpop(){
+  const d0 = HD[0], i0 = HI[0], d = HD.pop(), i = HI.pop(), n = HD.length;
+  if(n){ let k = 0;
+    for(;;){ let c = 2*k+1; if(c >= n) break; if(c+1 < n && HD[c+1] < HD[c]) c++; if(HD[c] >= d) break;
+      HD[k] = HD[c]; HI[k] = HI[c]; k = c; }
+    HD[k] = d; HI[k] = i; }
+  popD = d0; return i0;
+}
+const DIRS = [[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,Math.SQRT2],[1,-1,Math.SQRT2],[-1,1,Math.SQRT2],[-1,-1,Math.SQRT2]];
+const free = (cx,cz) => cx>=0 && cz>=0 && cx<NAV.n && cz<NAV.n && !NAV.blocked[cz*NAV.n+cx];
+function buildFlow(px, pz){
+  const n = NAV.n, D = NAV.dist; D.fill(Infinity); HD.length = HI.length = 0;
+  let sx = cellOf(px), sz = cellOf(pz);
+  if(!free(sx,sz)){   // pemain menempel rintangan: pakai sel bebas terdekat
+    let found = false;
+    for(let r=1; r<4 && !found; r++) for(let oz=-r; oz<=r && !found; oz++) for(let ox=-r; ox<=r; ox++)
+      if(free(sx+ox, sz+oz)){ sx += ox; sz += oz; found = true; break; }
+  }
+  const s = sz*n + sx; D[s] = 0; hpush(0, s);
+  while(HD.length){
+    const i = hpop(), d = popD; if(d > D[i]) continue;
+    const cx = i % n, cz = (i / n) | 0;
+    for(const [ox,oz,c] of DIRS){
+      const nx = cx+ox, nz = cz+oz;
+      if(!free(nx,nz)) continue;
+      if(ox && oz && (!free(cx+ox,cz) || !free(cx,cz+oz))) continue;  // jangan potong sudut
+      const ni = nz*n + nx, nd = d + c;
+      if(nd < D[ni]){ D[ni] = nd; hpush(nd, ni); }
+    }
+  }
+}
+// sel tetangga dengan jarak terkecil (atau -1 kalau tidak ada yang lebih dekat)
+function bestNeighbor(cx, cz){
+  const n = NAV.n; let best = NAV.dist[cz*n+cx], bi = -1;
+  for(const [ox,oz] of DIRS){
+    const nx = cx+ox, nz = cz+oz;
+    if(!free(nx,nz)) continue;
+    if(ox && oz && (!free(cx+ox,cz) || !free(cx,cz+oz))) continue;
+    const d = NAV.dist[nz*n+nx]; if(d < best){ best = d; bi = nz*n+nx; }
+  }
+  return bi;
+}
+// arah dari posisi (x,z) mengikuti flow field, melihat 2 sel ke depan supaya jalannya halus
+function flowDir(x, z, out){
+  const n = NAV.n; let cx = cellOf(x), cz = cellOf(z);
+  let a = bestNeighbor(cx, cz); if(a < 0) return false;
+  const b = bestNeighbor(a % n, (a / n) | 0); const t = b >= 0 ? b : a;
+  out.x = cellCenter(t % n) - x; out.z = cellCenter((t / n) | 0) - z;
+  const l = Math.hypot(out.x, out.z) || 1; out.x /= l; out.z /= l; return true;
+}
+// garis lurus dari a ke b tidak menabrak rintangan yang diperbesar sebesar pad?
+function segClear(ax, az, bx, bz, pad){
+  const dx = bx-ax, dz = bz-az;
+  for(const b of boxes){
+    let t0 = 0, t1 = 1, hit = true;
+    for(const [o, dd, mn, mx] of [[ax,dx,b.minX-pad,b.maxX+pad],[az,dz,b.minZ-pad,b.maxZ+pad]]){
+      if(Math.abs(dd) < 1e-9){ if(o < mn || o > mx){ hit = false; break; } }
+      else { let ta = (mn-o)/dd, tb = (mx-o)/dd; if(ta > tb){ const s = ta; ta = tb; tb = s; }
+        t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); if(t0 > t1){ hit = false; break; } }
+    }
+    if(hit) return false;
+  }
+  return true;
+}
+const navOut = {x:0, z:0};
+loadLevel(0);
+
+/* ---------- player ---------- */
+const player = new THREE.Group(); scene.add(player);
+const pMat = new THREE.MeshStandardMaterial({color:0x4b5a3c, roughness:.8});
+const pDark = new THREE.MeshStandardMaterial({color:0x22262a, roughness:.7});
+const pSkin = new THREE.MeshStandardMaterial({color:0xc69a74, roughness:.8});
+function part(geo, mat, x,y,z, parent){ const m = new THREE.Mesh(geo,mat); m.position.set(x,y,z); m.castShadow = true; (parent||player).add(m); return m; }
+// Karakter: pendaki low-poly — topi merah terbalik, jaket kuning, ransel cokelat, jins, sepatu bot.
+// Depan karakter menghadap -Z, jadi ransel (+Z) terlihat dari kamera bahu.
+const flat = (c, r) => new THREE.MeshStandardMaterial({color:c, roughness:r||.85, flatShading:true});
+const C = {
+  jacket:flat(0xf2a124), jacketDk:flat(0xd9821a), jeans:flat(0x2c3e6e), boot:flat(0x7d4b2e), sole:flat(0x4a2c1c),
+  skin:flat(0xeab58c), hair:flat(0x6b3f22), cap:flat(0xa8303f), bag:flat(0x70452f), bagDk:flat(0x573422),
+  eye:flat(0x2a1d16), button:flat(0x3a3f4a,.5)
+};
+const torso = new THREE.Group(); player.add(torso);
+const B = (w,h,d,mat,x,y,z,parent) => part(new THREE.BoxGeometry(w,h,d), mat, x,y,z, parent||torso);
+// badan & jaket
+B(.62,.6,.38, C.jacket, 0,1.33,0);
+B(.66,.2,.42, C.jacketDk, 0,1.0,0);            // ujung jaket
+B(.58,.12,.36, C.jacket, 0,.86,0);             // pinggul
+B(.03,.66,.02, C.jacketDk, 0,1.28,-.2);        // resleting
+B(.46,.16,.42, C.jacket, 0,1.69,0);            // kerah tinggi
+B(.05,.05,.02, C.button, -.13,1.72,-.215); B(.05,.05,.02, C.button, .13,1.72,-.215);
+// kepala
+B(.18,.1,.18, C.skin, 0,1.79,0);               // leher
+const head = new THREE.Group(); head.position.set(0,1.98,0); torso.add(head);
+B(.44,.42,.42, C.skin, 0,0,0, head);
+B(.06,.12,.1, C.skin, -.245,-.01,.02, head); B(.06,.12,.1, C.skin, .245,-.01,.02, head); // telinga
+B(.07,.07,.02, C.eye, -.1,.03,-.215, head); B(.07,.07,.02, C.eye, .1,.03,-.215, head);   // mata
+B(.12,.035,.02, C.hair, -.1,.1,-.215, head); B(.12,.035,.02, C.hair, .1,.1,-.215, head); // alis
+B(.07,.12,.06, C.skin, 0,-.04,-.23, head);    // hidung
+B(.1,.025,.02, flat(0x9a5a48), 0,-.13,-.215, head); // mulut
+// rambut
+B(.46,.12,.44, C.hair, 0,.18,.01, head);
+B(.46,.3,.1, C.hair, 0,.02,.19, head);         // belakang
+B(.06,.18,.2, C.hair, -.23,.06,.06, head); B(.06,.18,.2, C.hair, .23,.06,.06, head);
+B(.2,.08,.04, C.hair, -.06,.13,-.215, head);   // poni terlihat dari lubang topi
+// topi dipakai terbalik: lidah topi di belakang
+B(.5,.16,.48, C.cap, 0,.26,.01, head);
+B(.4,.06,.44, C.cap, 0,.36,.02, head);
+B(.36,.035,.26, C.cap, 0,.2,.34, head);        // lidah topi
+B(.2,.05,.02, C.jacketDk, 0,.2,-.23, head);   // tali pengatur di dahi
+// ransel
+B(.46,.52,.2, C.bag, 0,1.3,.3);
+B(.48,.16,.23, C.bagDk, 0,1.53,.3);            // tutup
+B(.32,.2,.07, C.bagDk, 0,1.16,.43);            // kantong
+B(.05,.1,.02, C.bag, -.09,1.42,.43); B(.05,.1,.02, C.bag, .09,1.42,.43); // gesper
+B(.08,.04,.32, C.bag, -.2,1.66,.02); B(.08,.04,.32, C.bag, .2,1.66,.02); // tali di bahu
+B(.07,.6,.03, C.bag, -.2,1.36,-.205); B(.07,.6,.03, C.bag, .2,1.36,-.205); // tali depan
+// kaki: jins + sepatu bot
+function leg(x){
+  const g = new THREE.Group(); g.position.set(x,.92,0); player.add(g);
+  B(.25,.62,.27, C.jeans, 0,-.31,0, g);
+  B(.28,.24,.32, C.boot, 0,-.72,-.02, g);
+  B(.29,.06,.38, C.sole, 0,-.89,-.04, g);
+  return g;
+}
+const pLegL = leg(-.16), pLegR = leg(.16);
+// lengan: jaket + manset + tangan
+function arm(x){
+  const g = new THREE.Group(); g.position.set(x,1.58,0); torso.add(g);
+  B(.2,.56,.21, C.jacket, 0,-.28,0, g);
+  B(.22,.08,.23, C.jacketDk, 0,-.58,0, g);
+  B(.14,.14,.12, C.skin, 0,-.69,0, g);
+  return g;
+}
+const pArmR = arm(.42), pArmL = arm(-.42);
+pArmR.rotation.x = Math.PI/2.2; pArmL.rotation.set(Math.PI/2.3,0,.62);
+const pDarkGun = flat(0x2a2d31,.6);
+const gun = new THREE.Group(); gun.position.set(.27,1.5,-.32); torso.add(gun);
+const wood = flat(0x8a5530,.8), steel = flat(0x4a4f55,.4);
+function gunModel(build, muzzleZ, muzzleY){
+  const g = new THREE.Group(); gun.add(g);
+  const P = (w,h,d,mat,x,y,z,rx) => { const m = part(new THREE.BoxGeometry(w,h,d), mat, x,y,z, g); if(rx) m.rotation.x = rx; return m; };
+  g.userData.extra = build(P) || {};
+  const mz = new THREE.Object3D(); mz.position.set(0,muzzleY||.02,muzzleZ); g.add(mz); g.userData.muzzle = mz;
+  g.visible = false; return g;
+}
+const gunModels = [
+  // Pistol
+  gunModel(P => {
+    P(.07,.09,.32, pDarkGun, 0,.04,-.42);
+    P(.055,.05,.3, steel, 0,-.01,-.42);
+    P(.06,.17,.09, pDarkGun, 0,-.08,-.3, .25);
+    P(.02,.03,.02, steel, 0,.1,-.56);
+  }, -.6, .04),
+  // AK-47
+  gunModel(P => {
+    P(.09,.13,.46, pDarkGun, 0,0,-.26);
+    P(.04,.04,.42, steel, 0,.03,-.68);
+    P(.085,.085,.26, wood, 0,-.01,-.56);
+    P(.07,.12,.34, wood, 0,-.04,.12);
+    P(.06,.24,.11, pDarkGun, 0,-.17,-.33, -.35);
+    P(.06,.15,.08, wood, 0,-.12,-.08, .3);
+    P(.02,.07,.02, steel, 0,.07,-.86);
+  }, -.9, .03),
+  // Shotgun pump-action
+  gunModel(P => {
+    P(.09,.12,.26, pDarkGun, 0,0,-.12);
+    P(.06,.06,.74, steel, 0,.03,-.58);
+    P(.05,.05,.56, pDarkGun, 0,-.035,-.5);
+    const pump = P(.09,.09,.2, wood, 0,-.035,-.6);
+    P(.075,.13,.36, wood, 0,-.04,.18);
+    P(.06,.14,.08, wood, 0,-.11,-.02, .3);
+    return {pump};
+  }, -.96, .03)
+];
+const flashMesh = new THREE.Mesh(new THREE.SphereGeometry(.13,6,6), new THREE.MeshBasicMaterial({color:0xffd27a, transparent:true, opacity:.9}));
+flashMesh.visible = false;
+const flashLight = new THREE.PointLight(0xffb35a, 0, 9, 2);
+let muzzle = gunModels[1].userData.muzzle;
+function showGunModel(i){
+  gunModels.forEach((m,j) => m.visible = j === i);
+  muzzle = gunModels[i].userData.muzzle; muzzle.add(flashMesh); muzzle.add(flashLight);
+}
+showGunModel(1);
+
+/* ---------- senjata ---------- */
+const WEAPONS = [
+  {id:'pistol',  name:'Pistol',  cal:'9 mm',     mag:12, reserve:Infinity, dmg:34, head:2.5, rate:.2,  auto:false, pellets:1,
+   spread:.006, move:.014, bloom:.02,  bloomMax:.05, recoil:.02,  reload:1.2},
+  {id:'ak',      name:'AK-47',   cal:'7.62 mm',  mag:30, reserve:90,       dmg:30, head:2.5, rate:.1,  auto:true,  pellets:1,
+   spread:.014, move:.022, bloom:.012, bloomMax:.065,recoil:.016, reload:2.1},
+  {id:'shotgun', name:'Shotgun', cal:'12 gauge', mag:6,  reserve:24,       dmg:15, head:1.6, rate:.85, auto:false, pellets:9,
+   spread:.065, move:.012, bloom:0,    bloomMax:0,   recoil:.05,  reload:.5, perShell:true}
+];
+const torch = new THREE.SpotLight(0xfff1d6, 1.4, 34, .42, .5, 1.6);
+torch.position.set(0,0,0); gun.add(torch); gun.add(torch.target); torch.target.position.set(0,-.2,-10);
+
+/* ---------- state ---------- */
+const S = {
+  state:'menu', lockFailed:false, endless:false, time:0, heads:0, winT:0,
+  pos:new THREE.Vector3(), vel:new THREE.Vector3(), yaw:0, pitch:-.08,
+  hp:100, stamina:100, vy:0, grounded:true, coyote:0, jumpBuf:0, landT:0, camY:0, wpn:1, prevWpn:0, switchT:0, inv:[], reload:0, fireCd:0, bloom:0, ads:0,
+  wave:0, toSpawn:0, spawnCd:0, intermission:0, score:0, kills:0, hurt:0, walk:0, recoil:0
+};
+const keys = {}; let firing = false, aiming = false, trigger = false;
+const GRAVITY = 24, JUMP_V = 8.5;   // puncak lompatan ±1,5 m
+const curW = () => WEAPONS[S.wpn], curA = () => S.inv[S.wpn];
+
+/* ---------- audio (sintetis) ---------- */
+let actx = null, muted = false, noiseBuf = null, master = null;
+let volume = 100;                       // persen, 0–100 (100% = paling keras)
+const BASE_GAIN = 2.4;                  // penguat dasar; kompresor menjaga agar tidak pecah
+try{ const v = localStorage.getItem('zm_vol'); if(v !== null && isFinite(+v)) volume = clamp(+v, 0, 100); }catch(e){}
+function applyVolume(){
+  if(master) master.gain.setTargetAtTime(muted ? 0 : (volume/100)*BASE_GAIN, actx.currentTime, .02);
+  for(const id of ['volA','volB']){ const el = document.getElementById(id); if(el) el.value = volume;
+    const o = document.getElementById(id+'Out'); if(o) o.textContent = volume + '%'; }
+}
+function setVolume(v, save){
+  volume = clamp(Math.round(v/5)*5, 0, 100); applyVolume();
+  if(save !== false){ try{ localStorage.setItem('zm_vol', volume); }catch(e){} }
+}
+function initAudio(){
+  if(actx) return;
+  try{
+    actx = new (window.AudioContext||window.webkitAudioContext)();
+    noiseBuf = actx.createBuffer(1, actx.sampleRate*.5, actx.sampleRate);
+    const d = noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+    const comp = actx.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 6; comp.attack.value = .003; comp.release.value = .15;
+    master = actx.createGain(); master.connect(comp); comp.connect(actx.destination);
+    applyVolume();
+  }catch(e){ actx = null; }
+}
+function noise(dur, freq, vol, type){
+  if(!actx || muted) return;
+  const s = actx.createBufferSource(); s.buffer = noiseBuf;
+  const f = actx.createBiquadFilter(); f.type = type||'lowpass'; f.frequency.value = freq;
+  const g = actx.createGain(); const t = actx.currentTime;
+  g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t+dur);
+}
+function tone(freq, dur, vol, type, slide){
+  if(!actx || muted) return;
+  const o = actx.createOscillator(); o.type = type||'sine'; const g = actx.createGain(); const t = actx.currentTime;
+  o.frequency.setValueAtTime(freq,t); if(slide) o.frequency.exponentialRampToValueAtTime(slide,t+dur);
+  g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t+dur);
+}
+const sfx = {
+  shot(id){
+    if(id === 'pistol'){ noise(.08,3400,.26); tone(240,.06,.18,'square',90); }
+    else if(id === 'shotgun'){ noise(.34,1300,.6); tone(85,.22,.35,'sawtooth',38);
+      setTimeout(()=>{ noise(.05,1600,.22,'highpass'); setTimeout(()=>noise(.05,1200,.22,'highpass'),120); }, 330); }
+    else { noise(.12,2400,.35); tone(140,.08,.25,'square',50); }
+  },
+  shell(){ noise(.05,1900,.2,'highpass'); },
+  swap(){ noise(.05,2600,.14,'highpass'); tone(500,.04,.05,'square'); },
+  hit(){ tone(1400,.04,.08,'square'); },
+  kill(){ tone(520,.12,.12,'triangle',180); },
+  empty(){ tone(900,.03,.08,'square'); },
+  reload(){ noise(.05,3000,.15,'highpass'); setTimeout(()=>noise(.06,2000,.2,'highpass'),900); },
+  hurt(){ tone(90,.25,.35,'sawtooth',45); },
+  jump(){ noise(.08,900,.18); tone(180,.08,.08,'triangle',260); },
+  land(){ noise(.1,500,.3); tone(70,.1,.2,'sine',45); },
+  groan(){ tone(rand(80,130),.6,.14,'sawtooth',rand(50,70)); },
+  pickup(){ tone(660,.08,.12,'triangle'); setTimeout(()=>tone(990,.1,.12,'triangle'),70); },
+  wave(){ tone(220,.5,.15,'sawtooth',110); },
+  fanfare(){
+    const notes = [[392,0,.18],[523,.18,.18],[659,.36,.18],[784,.54,.45],[659,.99,.16],[784,1.15,.9]];
+    for(const [f,t,d] of notes) setTimeout(()=>{ tone(f,d+.1,.16,'square'); tone(f/2,d+.1,.12,'triangle'); }, t*1000);
+    setTimeout(()=>{ for(const f of [523,659,784,1047]) tone(f,1.4,.07,'triangle'); }, 1150);
+  },
+  launch(){ noise(.5,1400,.06,'bandpass'); tone(300,.5,.03,'sine',900); },
+  boom(){ noise(.6,700,.35); tone(60,.4,.25,'sine',30); setTimeout(()=>noise(.8,5000,.07,'highpass'), 120); }
+};
+
+/* ---------- zombie ---------- */
+const TYPES = {
+  walker:{hp:75,  speed:2.3, scale:1,   skin:0x7d8f62, cloth:0x4a3f36, dmg:12, score:100, r:.45, name:'Pejalan'},
+  runner:{hp:45,  speed:5.0, scale:.92, skin:0x9a9a6a, cloth:0x33424d, dmg:8,  score:150, r:.4,  name:'Pelari'},
+  tank:  {hp:420, speed:1.6, scale:1.65,skin:0x6f6a58, cloth:0x5a2a22, dmg:28, score:500, r:.5,  name:'Raksasa'}
+};
+const zombies = [];
+const geoCache = {};
+const G = (w,h,d) => geoCache[w+'_'+h+'_'+d] || (geoCache[w+'_'+h+'_'+d] = new THREE.BoxGeometry(w,h,d));
+
+function makeZombie(type, x, z){
+  const c = TYPES[type];
+  const mul = 1 + (S.wave-1)*.06;
+  const z0 = {type, cfg:c, hp:c.hp*mul, maxHp:c.hp*mul, speed:c.speed*(1+Math.min(.35,(S.wave-1)*.04))*rand(.9,1.1),
+    pos:new THREE.Vector3(x,0,z), dead:false, deadT:0, atk:0, atkCd:rand(.3,.8), phase:Math.random()*6, flash:0,
+    groanT:rand(2,7), parts:[], r:c.r*c.scale,
+    dirX:0, dirZ:1, navT:0, los:false, stuckT:0, unstick:0, side:1};
+  const g = new THREE.Group(); g.rotation.order = 'YXZ'; g.position.copy(z0.pos);
+  const skin = new THREE.MeshStandardMaterial({color:c.skin, roughness:.9});
+  const cloth = new THREE.MeshStandardMaterial({color:c.cloth, roughness:.95});
+  z0.mats = [skin, cloth];
+  const add = (geo,mat,px,py,pz,parent,head) => { const m = new THREE.Mesh(geo,mat); m.position.set(px,py,pz); m.castShadow = true;
+    m.userData = {z:z0, head:!!head}; (parent||g).add(m); z0.parts.push(m); return m; };
+  const wide = type==='tank' ? 1.25 : 1;
+  add(G(.66*wide,.8,.38), cloth, 0,1.2,0);
+  const headG = new THREE.Group(); headG.position.set(0,1.62,0); g.add(headG);
+  add(G(.42,.44,.42), skin, 0,.22,0, headG, true);
+  // mata merah
+  const eyeMat = new THREE.MeshBasicMaterial({color:0xff3a20});
+  for(const ex of [-.1,.1]){ const e = new THREE.Mesh(G(.07,.05,.02), eyeMat); e.position.set(ex,.27,.215); headG.add(e); }
+  const limbZ = (px,py,len,mat,w) => { const p = new THREE.Group(); p.position.set(px,py,0); g.add(p);
+    add(G(w,len,w), mat, 0,-len/2,0, p); return p; };
+  z0.legL = limbZ(-.17,.82,.82,cloth,.24); z0.legR = limbZ(.17,.82,.82,cloth,.24);
+  z0.armL = limbZ(-.42*wide,1.52,.72,skin,.18); z0.armR = limbZ(.42*wide,1.52,.72,skin,.18);
+  z0.head = headG;
+  g.scale.setScalar(c.scale);
+  scene.add(g); z0.g = g; zombies.push(z0);
+  return z0;
+}
+
+function pickType(){
+  const w = S.wave, r = Math.random();
+  if(w >= 3 && r < Math.min(.18, .06 + (w-3)*.025)) return 'tank';
+  if(w >= 2 && r < Math.min(.55, .2 + (w-2)*.06)) return 'runner';
+  return 'walker';
+}
+function spawnZombie(){
+  for(let t=0;t<30;t++){
+    const a = Math.random()*Math.PI*2, d = rand(30,44);
+    const x = clamp(S.pos.x + Math.cos(a)*d, -ARENA+2, ARENA-2), z = clamp(S.pos.z + Math.sin(a)*d, -ARENA+2, ARENA-2);
+    if(Math.hypot(x-S.pos.x,z-S.pos.z) < 20 || pointBlocked(x,z,1)) continue;
+    if(!isFinite(NAV.dist[cellOf(z)*NAV.n + cellOf(x)])) continue;   // hanya di titik yang punya jalan ke pemain
+    makeZombie(pickType(), x, z); return true;
+  }
+  return false;
+}
+
+/* ---------- pickups ---------- */
+const pickups = [];
+const ammoMat = new THREE.MeshStandardMaterial({color:0xe2a23b, emissive:0x6a4410, roughness:.5});
+const medMat = new THREE.MeshStandardMaterial({color:0xdedede, emissive:0x501010, roughness:.5});
+const crossMat = new THREE.MeshBasicMaterial({color:0xcf3a2e});
+function dropPickup(pos){
+  const r = Math.random(); let type = null;
+  if(r < .28) type = 'ammo'; else if(r < .38) type = 'med';
+  if(!type) return;
+  const g = new THREE.Group(); g.position.set(pos.x,.45,pos.z);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(.5,.32,.36), type==='ammo'?ammoMat:medMat); g.add(box);
+  if(type==='med'){ for(const [w,h] of [[.3,.08],[.08,.3]]){ const c = new THREE.Mesh(new THREE.BoxGeometry(w,h,.37), crossMat); g.add(c);} }
+  const glow = new THREE.PointLight(type==='ammo'?0xe2a23b:0xff4a3a, .8, 4, 2); g.add(glow);
+  scene.add(g); pickups.push({g,type,t:0});
+}
+
+/* ---------- efek ---------- */
+const particles = [];
+const bloodMat = new THREE.MeshBasicMaterial({color:0x6a0f0a});
+const sparkMat = new THREE.MeshBasicMaterial({color:0xffd27a});
+const dustMat = new THREE.MeshBasicMaterial({color:0x8a8a80});
+const pGeo = new THREE.BoxGeometry(.07,.07,.07);
+function burst(p, mat, n, speed){
+  for(let i=0;i<n;i++){
+    const m = new THREE.Mesh(pGeo, mat); m.position.copy(p); scene.add(m);
+    particles.push({m, v:new THREE.Vector3(rand(-1,1),rand(.2,1.4),rand(-1,1)).multiplyScalar(speed), life:rand(.35,.7)});
+  }
+}
+const tracers = [];
+const tracerMat = new THREE.LineBasicMaterial({color:0xffe0a0, transparent:true, opacity:.9});
+function tracer(a,b){
+  const geo = new THREE.BufferGeometry().setFromPoints([a,b]);
+  const l = new THREE.Line(geo, tracerMat.clone()); scene.add(l); tracers.push({l, life:.06});
+}
+const decals = [];
+const decalMat = new THREE.MeshBasicMaterial({color:0x111111, transparent:true, opacity:.7, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2});
+const decalGeo = new THREE.PlaneGeometry(.14,.14);
+function bulletHole(hit){
+  if(!hit.face) return;
+  const m = new THREE.Mesh(decalGeo, decalMat);
+  const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+  m.position.copy(hit.point).addScaledVector(n,.01); m.lookAt(hit.point.clone().add(n));
+  scene.add(m); decals.push(m); if(decals.length > 80) scene.remove(decals.shift());
+}
+
+/* ---------- HUD ---------- */
+const hud = {
+  wave:$('waveTxt'), left:$('leftTxt'), score:$('scoreTxt'), kills:$('killTxt'), hp:$('hpTxt'),
+  hpBar:$('hpBar').firstElementChild, stBar:$('stBar').firstElementChild, mag:$('magTxt'), res:$('resTxt'), wpn:$('wpnLbl'),
+  reload:$('reloadTxt'), xh:$('xh'), hit:$('hit'), vig:$('vignette'), adsVig:$('adsVig'), banner:$('banner'),
+  bT:$('bannerT'), bS:$('bannerS'), feed:$('feed')
+};
+let hitT = 0, bannerT = 0;
+function showHit(kill){ hud.hit.classList.toggle('kill', !!kill); hitT = .15; }
+function banner(t, s, dur){ hud.bT.textContent = t; hud.bS.textContent = s||''; bannerT = dur||2.5; }
+function feed(txt, cls){
+  const d = document.createElement('div'); d.textContent = txt; if(cls) d.className = cls;
+  hud.feed.prepend(d); while(hud.feed.children.length > 4) hud.feed.lastChild.remove();
+  setTimeout(()=>d.remove(), 2600);
+}
+function aliveCount(){ return zombies.filter(z=>!z.dead).length; }
+function updateHud(){
+  hud.wave.textContent = S.wave;
+  hud.left.textContent = 'Sisa zombie ' + (aliveCount() + S.toSpawn);
+  hud.score.textContent = S.score.toLocaleString('id-ID');
+  hud.kills.textContent = S.kills + ' kill';
+  hud.hp.textContent = Math.ceil(S.hp);
+  hud.hpBar.style.transform = `scaleX(${S.hp/100})`;
+  hud.stBar.style.transform = `scaleX(${S.stamina/100})`;
+  const w = curW(), a = curA();
+  hud.mag.textContent = a.mag; hud.mag.style.color = a.mag <= Math.ceil(w.mag*.25) ? 'var(--danger)' : '';
+  hud.res.textContent = '/ ' + fmtRes(a.reserve);
+  hud.wpn.textContent = w.name + ' · ' + w.cal;
+  hud.reload.textContent = S.switchT > 0 ? 'GANTI SENJATA' :
+    S.reload > 0 ? (w.perShell ? 'MEMASUKKAN PELURU…' : 'MENGISI ULANG…') :
+    (a.mag === 0 && a.reserve === 0 ? 'PELURU HABIS · GANTI SENJATA' : (a.mag <= Math.ceil(w.mag*.25) ? 'TEKAN R' : ''));
+  for(let i=0;i<slotEls.length;i++){
+    const t = S.inv[i] ? S.inv[i].mag + ' / ' + fmtRes(S.inv[i].reserve) : '';
+    if(slotEls[i].amm.textContent !== t) slotEls[i].amm.textContent = t;
+  }
+}
+const fmtRes = r => r === Infinity ? '∞' : r;
+const slotEls = WEAPONS.map((w,i) => {
+  const d = document.createElement('div');
+  d.innerHTML = `<b>${i+1}</b><span>${w.name}</span><em></em>`;
+  $('slots').appendChild(d); return {d, amm:d.querySelector('em')};
+});
+function renderSlots(){ slotEls.forEach((s,i) => s.d.classList.toggle('on', i === S.wpn)); }
+
+/* ---------- input ---------- */
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if(e.code === 'Space' && S.state === 'playing'){ e.preventDefault(); if(!e.repeat) S.jumpBuf = .12; }
+  if(S.state !== 'playing') return;
+  if(e.code === 'KeyR') startReload();
+  if(e.code === 'Digit1') switchWeapon(0);
+  if(e.code === 'Digit2') switchWeapon(1);
+  if(e.code === 'Digit3') switchWeapon(2);
+  if(e.code === 'KeyQ') switchWeapon(S.prevWpn);
+  if(e.code === 'KeyM'){ muted = !muted; applyVolume(); feed(muted ? 'Suara mati' : 'Suara nyala · ' + volume + '%'); }
+  const volStep = (e.code === 'BracketRight' || e.code === 'Equal' || e.code === 'NumpadAdd') ? 10 :
+                  (e.code === 'BracketLeft' || e.code === 'Minus' || e.code === 'NumpadSubtract') ? -10 : 0;
+  if(volStep){ muted = false; setVolume(volume + volStep); feed('Volume ' + volume + '%'); sfx.hit(); }
+  if((e.code === 'KeyP' || e.code === 'Escape') && S.lockFailed) pause();
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for(const k in keys) keys[k] = false; firing = aiming = false; });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('mousedown', e => {
+  if(S.state !== 'playing') return;
+  if(e.button === 0){ firing = true; trigger = true; }
+  if(e.button === 2) aiming = true;
+});
+let wheelLock = 0;
+addEventListener('wheel', e => {
+  if(S.state !== 'playing' || performance.now() < wheelLock || !e.deltaY) return;
+  wheelLock = performance.now() + 180;
+  switchWeapon((S.wpn + (e.deltaY > 0 ? 1 : -1) + WEAPONS.length) % WEAPONS.length);
+}, {passive:true});
+function switchWeapon(i){
+  if(S.state !== 'playing' || i === S.wpn || i < 0 || i >= WEAPONS.length) return;
+  S.prevWpn = S.wpn; S.wpn = i; S.reload = 0; S.switchT = .35; S.bloom = 0;
+  S.fireCd = Math.max(S.fireCd, .35); trigger = false;
+  showGunModel(i); sfx.swap(); renderSlots();
+}
+addEventListener('mouseup', e => { if(e.button === 0) firing = false; if(e.button === 2) aiming = false; });
+let lastMX = null, lastMY = null;
+addEventListener('mousemove', e => {
+  if(S.state !== 'playing') return;
+  let dx, dy;
+  if(document.pointerLockElement === canvas){ dx = e.movementX; dy = e.movementY; }
+  else if(S.lockFailed){ if(lastMX === null){ lastMX = e.clientX; lastMY = e.clientY; return; }
+    dx = (e.clientX - lastMX)*1.6; dy = (e.clientY - lastMY)*1.6; lastMX = e.clientX; lastMY = e.clientY; }
+  else return;
+  const sens = (aiming ? .0011 : .0022);
+  S.yaw -= dx*sens; S.pitch = clamp(S.pitch - dy*sens, -1.05, .75);
+});
+function requestLock(){
+  if(IS_TOUCH) return;
+  try{
+    const r = canvas.requestPointerLock();
+    if(r && r.catch) r.catch(() => { S.lockFailed = true; });
+  }catch(e){ S.lockFailed = true; }
+}
+document.addEventListener('pointerlockerror', () => { S.lockFailed = true; });
+document.addEventListener('pointerlockchange', () => {
+  if(document.pointerLockElement !== canvas && S.state === 'playing' && !S.lockFailed) pause();
+});
+
+/* ---------- kontrol sentuh ---------- */
+const TC = {mx:0, my:0, mag:0, moveId:null, ox:0, oy:0, lookId:null, lx:0, ly:0, fireId:null, fx:0, fy:0};
+const touchEl = $('touch'), joyEl = $('joy'), joyKnob = joyEl.firstElementChild;
+const fireBtn = $('tFire'), aimBtn = $('tAim');
+const JOY_R = 55;
+function joyHome(){
+  joyEl.style.left = '100px'; joyEl.style.top = (innerHeight - 100) + 'px';
+  joyKnob.style.transform = ''; joyEl.classList.remove('active', 'sprint');
+}
+joyHome(); addEventListener('resize', () => { if(TC.moveId === null) joyHome(); });
+function touchLook(dx, dy){
+  const sens = aiming ? .0032 : .0062;
+  S.yaw -= dx*sens; S.pitch = clamp(S.pitch - dy*sens, -1.05, .75);
+}
+touchEl.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if(S.state !== 'playing') return;
+  for(const t of e.changedTouches){
+    if(t.clientX < innerWidth*.42 && TC.moveId === null){
+      TC.moveId = t.identifier; TC.ox = t.clientX; TC.oy = t.clientY;
+      joyEl.style.left = TC.ox + 'px'; joyEl.style.top = TC.oy + 'px'; joyEl.classList.add('active');
+    } else if(TC.lookId === null){ TC.lookId = t.identifier; TC.lx = t.clientX; TC.ly = t.clientY; }
+  }
+}, {passive:false});
+touchEl.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    if(t.identifier === TC.moveId){
+      let dx = t.clientX - TC.ox, dy = t.clientY - TC.oy; const d = Math.hypot(dx, dy);
+      if(d > JOY_R){   // pangkal joystick ikut tertarik jari supaya arah balik tetap cepat
+        TC.ox += dx/d*(d-JOY_R); TC.oy += dy/d*(d-JOY_R);
+        joyEl.style.left = TC.ox + 'px'; joyEl.style.top = TC.oy + 'px';
+        dx = t.clientX - TC.ox; dy = t.clientY - TC.oy;
+      }
+      TC.mx = dx/JOY_R; TC.my = dy/JOY_R; TC.mag = Math.min(1, Math.hypot(TC.mx, TC.my));
+      joyKnob.style.transform = `translate(${dx}px,${dy}px)`;
+      joyEl.classList.toggle('sprint', TC.mag > .9 && -TC.my > .75);
+    } else if(t.identifier === TC.lookId){
+      touchLook(t.clientX - TC.lx, t.clientY - TC.ly); TC.lx = t.clientX; TC.ly = t.clientY;
+    } else if(t.identifier === TC.fireId){
+      touchLook((t.clientX - TC.fx)*.8, (t.clientY - TC.fy)*.8); TC.fx = t.clientX; TC.fy = t.clientY;
+    }
+  }
+}, {passive:false});
+function touchEnd(e){
+  for(const t of e.changedTouches){
+    if(t.identifier === TC.moveId){ TC.moveId = null; TC.mx = TC.my = TC.mag = 0; joyHome(); }
+    if(t.identifier === TC.lookId) TC.lookId = null;
+    if(t.identifier === TC.fireId){ TC.fireId = null; firing = false; fireBtn.classList.remove('down'); }
+  }
+}
+touchEl.addEventListener('touchend', touchEnd); touchEl.addEventListener('touchcancel', touchEnd);
+function tbtn(el, onDown){
+  el.addEventListener('touchstart', e => {
+    e.preventDefault(); e.stopPropagation();
+    if(S.state !== 'playing') return;
+    el.classList.add('down'); onDown(e.changedTouches[0]);
+  }, {passive:false});
+  const up = () => { if(el !== fireBtn) el.classList.remove('down'); };
+  el.addEventListener('touchend', up); el.addEventListener('touchcancel', up);
+}
+tbtn(fireBtn, t => { TC.fireId = t.identifier; TC.fx = t.clientX; TC.fy = t.clientY; firing = true; trigger = true; initAudio(); });
+tbtn($('tJump'), () => { S.jumpBuf = .12; });
+tbtn($('tReload'), () => startReload());
+tbtn($('tPause'), () => pause());
+tbtn(aimBtn, () => { aiming = !aiming; aimBtn.classList.toggle('lit', aiming); });
+slotEls.forEach((sl, i) => sl.d.addEventListener('touchstart', e => { e.preventDefault(); switchWeapon(i); }, {passive:false}));
+function resetTouch(){
+  TC.moveId = TC.lookId = TC.fireId = null; TC.mx = TC.my = TC.mag = 0; joyHome();
+  if(IS_TOUCH){ firing = false; aiming = false; aimBtn.classList.remove('lit'); }
+  for(const b of touchEl.querySelectorAll('.tbtn')) b.classList.remove('down');
+}
+function goFullscreen(){
+  if(!IS_TOUCH) return;
+  try{
+    const el = document.documentElement, r = el.requestFullscreen ? el.requestFullscreen({navigationUI:'hide'}) : null;
+    if(r && r.then) r.then(() => { try{ screen.orientation.lock('landscape').catch(() => {}); }catch(e){} }).catch(() => {});
+  }catch(e){}
+}
+document.addEventListener('visibilitychange', () => { if(document.hidden) pause(); });
+let lastPl = null;
+
+/* ---------- alur game ---------- */
+function showCard(id){
+  for(const c of ['menuCard','pauseCard','overCard','winCard']) $(c).hidden = c !== id;
+  $('overlay').classList.toggle('celebrate', id === 'winCard');
+  $('overlay').hidden = !id; $('hud').hidden = !!id && id !== 'pauseCard';
+}
+const fadeEl = document.getElementById('fade');
+function fadeTo(a){ fadeEl.style.opacity = a; }
+function clearTransient(){
+  for(const z of zombies) scene.remove(z.g); zombies.length = 0;
+  for(const p of pickups) scene.remove(p.g); pickups.length = 0;
+  for(const p of particles) scene.remove(p.m); particles.length = 0;
+  for(const d of decals) scene.remove(d); decals.length = 0;
+}
+function swapArea(){
+  const next = (levelIdx + 1) % LEVELS.length;
+  clearTransient();
+  loadLevel(next, next === 0 ? levelCycle + 1 : levelCycle);
+  S.pos.set(0,0,0); S.vel.set(0,0,0); Object.assign(S, {vy:0, grounded:true, camY:0, yaw:0, pitch:-.08});
+  S.hp = Math.min(100, S.hp + 25);
+  NAV.pc = -1; NAV.t = 0; buildFlow(0, 0);
+  banner(LEVELS[next].name.toUpperCase(), 'Darah +25 · bertahan 2 gelombang', 3.2);
+}
+const FINAL_WAVE = 8;
+/* ---- kembang api ---- */
+const fireworks = [];
+const fwLight = new THREE.PointLight(0xffffff, 0, 90, 1.5); scene.add(fwLight);
+const sparkTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32,32,0,32,32,32); gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(.25,'rgba(255,255,255,.85)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0,0,64,64); return new THREE.CanvasTexture(c); })();
+const FW_COLORS = [0xff4a3a, 0xffc23a, 0x5aff8a, 0x4ac8ff, 0xff6ad5, 0xffffff];
+function launchFirework(){
+  const a = Math.random()*Math.PI*2, r = rand(14,24);
+  const x = S.pos.x + Math.cos(a)*r, z = S.pos.z + Math.sin(a)*r;
+  const color = FW_COLORS[Math.floor(Math.random()*FW_COLORS.length)];
+  const rocket = new THREE.Mesh(new THREE.SphereGeometry(.12,6,6), new THREE.MeshBasicMaterial({color:0xffe0a0}));
+  rocket.position.set(x, 1, z); scene.add(rocket);
+  fireworks.push({kind:'rocket', m:rocket, vy:rand(16,20), top:rand(11,17), color});
+  sfx.launch();
+}
+function burstFirework(pos, color){
+  const n = 220, geo = new THREE.BufferGeometry(), arr = new Float32Array(n*3), vel = [];
+  for(let i=0;i<n;i++){
+    arr[i*3] = pos.x; arr[i*3+1] = pos.y; arr[i*3+2] = pos.z;
+    const u = Math.random()*2-1, th = Math.random()*Math.PI*2, sp = rand(7,11), q = Math.sqrt(1-u*u);
+    vel.push(new THREE.Vector3(q*Math.cos(th)*sp, u*sp, q*Math.sin(th)*sp));
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const mat = new THREE.PointsMaterial({color, map:sparkTex, size:.7, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false, fog:false});
+  const pts = new THREE.Points(geo, mat); scene.add(pts);
+  fireworks.push({kind:'burst', m:pts, vel, life:2.2, max:2.2});
+  fwLight.position.copy(pos); fwLight.color.setHex(color); fwLight.intensity = 4;
+  sfx.boom();
+}
+function updateFireworks(dt){
+  fwLight.intensity = Math.max(0, fwLight.intensity - dt*5);
+  for(let i=fireworks.length-1;i>=0;i--){
+    const f = fireworks[i];
+    if(f.kind === 'rocket'){
+      f.m.position.y += f.vy*dt; f.m.position.x += Math.sin(f.m.position.y)*dt*.6;
+      if(Math.random() < .6) burst(f.m.position, sparkMat, 1, .6);
+      if(f.m.position.y >= f.top){ burstFirework(f.m.position.clone(), f.color); scene.remove(f.m); f.m.geometry.dispose(); f.m.material.dispose(); fireworks.splice(i,1); }
+    } else {
+      f.life -= dt;
+      const a = f.m.geometry.attributes.position, drag = Math.pow(.25, dt);
+      for(let k=0;k<f.vel.length;k++){ const v = f.vel[k]; v.multiplyScalar(drag); v.y -= 4.5*dt;
+        a.array[k*3] += v.x*dt; a.array[k*3+1] += v.y*dt; a.array[k*3+2] += v.z*dt; }
+      a.needsUpdate = true;
+      f.m.material.opacity = Math.max(0, f.life/f.max); f.m.material.size = .7 * (.6 + .4*f.life/f.max);
+      if(f.life <= 0){ scene.remove(f.m); f.m.geometry.dispose(); f.m.material.dispose(); fireworks.splice(i,1); }
+    }
+  }
+}
+function clearFireworks(){
+  for(const f of fireworks){ scene.remove(f.m); f.m.geometry.dispose(); f.m.material.dispose(); }
+  fireworks.length = 0; fwLight.intensity = 0;
+}
+const fmtTime = t => { const m = Math.floor(t/60), s = Math.floor(t%60); return m + ':' + String(s).padStart(2,'0'); };
+function victory(){
+  S.state = 'win'; S.winT = 0; S.fwT = .2; firing = aiming = false;
+  try{ document.exitPointerLock(); }catch(e){}
+  banner('TAMAT', 'Semua gelombang berhasil dilewati', 4);
+  sfx.fanfare(); gun.visible = false; $('hud').classList.add('cele');
+  let best = 0, isNew = false;
+  try{ best = +localStorage.getItem('zm_best') || 0; if(S.score > best){ best = S.score; isNew = true; localStorage.setItem('zm_best', best); } }catch(e){ best = Math.max(best, S.score); }
+  $('wKill').textContent = S.kills; $('wHead').textContent = S.heads; $('wTime').textContent = fmtTime(S.time);
+  $('wScore').textContent = S.score.toLocaleString('id-ID'); $('wBest').textContent = best.toLocaleString('id-ID');
+  $('wNew').hidden = !isNew;
+  setTimeout(() => { if(S.state === 'win') showCard('winCard'); }, 4200);
+}
+function updateVictory(dt){
+  S.winT += dt;
+  // karakter bersorak: lompat kecil, kedua tangan diayunkan ke atas
+  const t = S.winT, hop = Math.max(0, Math.sin(t*6));
+  player.position.set(S.pos.x, S.pos.y + hop*.35, S.pos.z);
+  pArmR.rotation.set(Math.PI*.95 + Math.sin(t*12)*.25, 0, -.25);
+  pArmL.rotation.set(Math.PI*.95 + Math.sin(t*12+1.5)*.25, 0, .25);
+  pLegL.rotation.x = -hop*.4; pLegR.rotation.x = -hop*.4;
+  torso.position.y = 0; head.rotation.x = -.35;
+  player.rotation.y += dt*.6;
+  // kamera berputar pelan mengelilingi pemain, sedikit dari bawah supaya langit terlihat
+  const ca = t*.35, r = 6.5;
+  camera.position.set(S.pos.x + Math.cos(ca)*r, S.pos.y + 1.6, S.pos.z + Math.sin(ca)*r);
+  camera.lookAt(S.pos.x, S.pos.y + 4.2, S.pos.z);
+  if(camera.fov !== 62){ camera.fov = 62; camera.updateProjectionMatrix(); }
+  // kembang api: rapat di awal, lalu terus menyala di belakang layar tamat
+  S.fwT -= dt;
+  if(S.fwT <= 0){ launchFirework(); if(t < 4 && Math.random() < .5) setTimeout(launchFirework, 150); S.fwT = t < 4 ? rand(.25,.5) : rand(.7,1.4); }
+  hud.vig.style.opacity = 0; hud.adsVig.style.opacity = 0; hud.xh.style.opacity = 0;
+  bannerT = Math.max(0, bannerT - dt); hud.banner.style.opacity = bannerT > 0 ? Math.min(1, bannerT*2) : 0;
+}
+function continueEndless(){
+  $('hud').classList.remove('cele');
+  S.endless = true; S.state = 'playing'; gun.visible = true; clearFireworks();
+  pArmL.rotation.set(Math.PI/2.3,0,.62); pArmR.rotation.set(Math.PI/2.2,0,0);
+  showCard(null); requestLock(); lastMX = null; clock.getDelta();
+  S.between = true; S.intermission = 8.5; S.swapPhase = 1;
+  banner('MODE TANPA AKHIR', 'Evakuasi ke area berikutnya…', 2.4);
+}
+function resetGame(){
+  clearTransient();
+  if(levelIdx !== 0 || levelCycle !== 0) loadLevel(0, 0);
+  S.swapPhase = 0; fadeTo(0);
+  Object.assign(S, {hp:100, stamina:100, wpn:1, prevWpn:0, switchT:0, inv:WEAPONS.map(w => ({mag:w.mag, reserve:w.reserve})),
+    reload:0, fireCd:0, bloom:0, ads:0,
+    wave:0, toSpawn:0, spawnCd:0, intermission:2.5, between:true, score:0, kills:0, hurt:0, yaw:0, pitch:-.08, recoil:0,
+    endless:false, time:0, heads:0, winT:0});
+  gun.visible = true; clearFireworks(); $('hud').classList.remove('cele');
+  pArmL.rotation.set(Math.PI/2.3,0,.62); pArmR.rotation.set(Math.PI/2.2,0,0); camera.fov = 70; camera.updateProjectionMatrix();
+  S.pos.set(0,0,0); S.vel.set(0,0,0); Object.assign(S, {vy:0, grounded:true, coyote:0, jumpBuf:0, landT:0, camY:0});
+  NAV.pc = -1; NAV.t = 0; buildFlow(0, 0);
+  hud.feed.innerHTML = ''; trigger = false;
+  showGunModel(1); renderSlots();
+  banner(LEVELS[0].name.toUpperCase(), 'Gelombang pertama datang', 2.4);
+}
+function startGame(){
+  initAudio(); if(actx && actx.state === 'suspended') actx.resume();
+  goFullscreen();
+  resetGame(); S.state = 'playing'; showCard(null); requestLock(); lastMX = null;
+}
+function pause(){ if(S.state !== 'playing') return; S.state = 'paused'; firing = aiming = false; showCard('pauseCard'); }
+function resume(){ S.state = 'playing'; showCard(null); requestLock(); lastMX = null; clock.getDelta(); }
+function gameOver(){
+  S.state = 'over'; firing = aiming = false;
+  let best = 0; try{ best = +localStorage.getItem('zm_best') || 0; if(S.score > best){ best = S.score; localStorage.setItem('zm_best', best); } }catch(e){ best = Math.max(best,S.score); }
+  $('oWave').textContent = S.wave; $('oArea').textContent = LEVELS[levelIdx].name; $('oKill').textContent = S.kills;
+  $('oScore').textContent = S.score.toLocaleString('id-ID'); $('oBest').textContent = best.toLocaleString('id-ID');
+  try{ document.exitPointerLock(); }catch(e){}
+  setTimeout(()=>showCard('overCard'), 900);
+}
+for(const id of ['volA','volB']){
+  $(id).addEventListener('input', e => { muted = false; setVolume(+e.target.value); });
+  $(id+'Test').addEventListener('click', () => {
+    initAudio(); if(actx && actx.state === 'suspended') actx.resume();
+    muted = false; applyVolume();
+    sfx.shot('ak'); setTimeout(()=>sfx.shot('shotgun'), 220); setTimeout(()=>sfx.groan(), 650);
+  });
+}
+applyVolume();
+$('startBtn').onclick = startGame; $('againBtn').onclick = startGame; $('winAgainBtn').onclick = startGame; $('endlessBtn').onclick = continueEndless; $('resumeBtn').onclick = resume;
+
+function nextWave(){
+  S.wave++; S.toSpawn = 6 + S.wave*4; S.spawnCd = .5;
+  banner('GELOMBANG ' + S.wave, S.toSpawn + ' zombie mendekat', 2.6); sfx.wave();
+  if(S.wave > 1){ S.inv[1].reserve += 30; S.inv[2].reserve += 6; feed('Bonus gelombang: +30 AK, +6 shotgun'); }
+}
+
+function startReload(){
+  const w = curW(), a = curA();
+  if(S.reload > 0 || S.switchT > 0 || a.mag >= w.mag || a.reserve <= 0) return;
+  S.reload = w.reload; if(!w.perShell) sfx.reload();
+}
+function tickReload(dt){
+  if(S.reload <= 0) return;
+  S.reload -= dt; if(S.reload > 0) return;
+  const w = curW(), a = curA();
+  if(w.perShell){
+    if(a.reserve > 0){ a.mag++; a.reserve--; sfx.shell(); }
+    S.reload = (a.mag < w.mag && a.reserve > 0) ? w.reload : 0;
+  } else {
+    const take = Math.min(w.mag - a.mag, a.reserve); a.mag += take; a.reserve -= take; S.reload = 0;
+  }
+}
+
+/* ---------- menembak ---------- */
+const ray = new THREE.Raycaster();
+const camRay = new THREE.Raycaster();
+const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
+let flashT = 0;
+function currentSpread(){
+  const w = curW(), moving = Math.hypot(S.vel.x,S.vel.z) > .5;
+  let s = w.spread + (moving ? w.move : 0) + S.bloom;
+  s *= lerp(1, w.pellets > 1 ? .75 : .35, S.ads);
+  return s;
+}
+function shoot(){
+  const w = curW(), am = curA();
+  if(S.reload > 0){ if(w.perShell && am.mag > 0) S.reload = 0; else return; }  // shotgun bisa memotong reload
+  if(am.mag <= 0){ sfx.empty(); S.fireCd = .25; trigger = false; if(am.reserve > 0) startReload(); return; }
+  am.mag--; S.fireCd = w.rate; trigger = false; sfx.shot(w.id);
+  S.bloom = Math.min(S.bloom + w.bloom, w.bloomMax);
+  S.recoil += w.recoil;
+  flashT = w.pellets > 1 ? .07 : .05;
+  const spread = currentSpread();
+  const k = Math.tan(spread) / Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+  const targets = solidMeshes.concat(ground);
+  for(const z of zombies) if(!z.dead) targets.push(...z.parts);
+  const from = muzzle.getWorldPosition(tmpV2).clone();
+  const dmgMap = new Map();
+  ray.near = camDistNow + .3; ray.far = w.pellets > 1 ? 45 : 120;
+  for(let p=0; p<w.pellets; p++){
+    // shotgun: sebaran merata di dalam kerucut; senapan lain: condong ke tengah
+    const a = Math.random()*Math.PI*2, rr = (w.pellets > 1 ? Math.sqrt(Math.random()) : Math.random())*k;
+    ray.setFromCamera({x:Math.cos(a)*rr/camera.aspect, y:Math.sin(a)*rr}, camera);
+    const hits = ray.intersectObjects(targets, false);
+    let end;
+    if(hits.length){
+      const h = hits[0]; end = h.point;
+      const z = h.object.userData.z;
+      if(z){
+        const head = h.object.userData.head;
+        let d = w.dmg * (head ? w.head : 1);
+        if(w.pellets > 1) d *= clamp(1 - (h.distance - 8)/22, .25, 1);   // damage shotgun turun dengan jarak
+        const e = dmgMap.get(z) || {dmg:0, head:false, point:h.point};
+        e.dmg += d; e.head = e.head || head; dmgMap.set(z, e);
+      } else {
+        burst(h.point, h.object === ground ? dustMat : sparkMat, w.pellets > 1 ? 1 : 4, 2.5);
+        if(p < 4) bulletHole(h);
+      }
+    } else end = ray.ray.at(w.pellets > 1 ? 45 : 80, new THREE.Vector3());
+    tracer(from, end);
+  }
+  for(const [z, e] of dmgMap) if(!z.dead) damageZombie(z, e.dmg, e.point, e.head);
+  if(w.pellets > 1){   // dorong zombie yang kena tembakan shotgun
+    for(const [z] of dmgMap){ const dx = z.pos.x - S.pos.x, dz = z.pos.z - S.pos.z, d = Math.hypot(dx,dz)||1;
+      if(d < 10){ z.pos.x += dx/d*.5; z.pos.z += dz/d*.5; } }
+  }
+  if(am.mag === 0 && am.reserve > 0) setTimeout(()=>{ if(S.state==='playing') startReload(); }, w.pellets > 1 ? 500 : 150);
+}
+function damageZombie(z, dmg, point, head){
+  z.hp -= dmg; z.flash = .08;
+  burst(point, bloodMat, head ? 10 : 5, 3);
+  if(z.hp <= 0){
+    z.dead = true; S.kills++;
+    const pts = z.cfg.score + (head ? 50 : 0); S.score += pts; if(head) S.heads++;
+    feed(`${z.cfg.name} +${pts}${head ? ' · tembak kepala' : ''}`, head ? 'hs' : '');
+    showHit(true); sfx.kill(); dropPickup(z.pos);
+  } else { showHit(false); sfx.hit(); z.atkCd = Math.max(z.atkCd, .15); }
+}
+
+/* ---------- loop ---------- */
+const clock = new THREE.Clock();
+let camDistNow = 4;
+const fwd = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3(0,1,0);
+
+function update(dt){
+  S.time += dt;
+  // ---- pemain ----
+  S.ads = lerp(S.ads, aiming ? 1 : 0, 1 - Math.pow(.0001, dt));
+  let fIn = (keys.KeyW?1:0) - (keys.KeyS?1:0), sIn = (keys.KeyD?1:0) - (keys.KeyA?1:0);
+  let mag = (fIn || sIn) ? 1 : 0;
+  if(TC.mag > .12){ fIn = -TC.my; sIn = TC.mx; mag = TC.mag; }   // joystick sentuh (analog)
+  const moving = mag > 0;
+  const sprint = keys.ShiftLeft || keys.ShiftRight || (TC.mag > .9 && -TC.my > .75);
+  const canSprint = sprint && fIn > 0 && !aiming && S.stamina > 2 && !firing;
+  if(canSprint) S.stamina = Math.max(0, S.stamina - 28*dt); else S.stamina = Math.min(100, S.stamina + (moving?14:22)*dt);
+  const speed = canSprint ? 8.4 : (aiming ? 3 : 5);
+  const sy = Math.sin(S.yaw), cy = Math.cos(S.yaw);
+  let mx = -sy*fIn + cy*sIn, mz = -cy*fIn - sy*sIn;
+  const ml = Math.hypot(mx,mz) || 1; mx/=ml; mz/=ml;
+  const tgtX = moving ? mx*speed*mag : 0, tgtZ = moving ? mz*speed*mag : 0;
+  const acc = 1 - Math.pow(S.grounded ? .0005 : .2, dt);   // kontrol di udara lebih terbatas
+  S.vel.x = lerp(S.vel.x, tgtX, acc); S.vel.z = lerp(S.vel.z, tgtZ, acc);
+  S.pos.x += S.vel.x*dt; S.pos.z += S.vel.z*dt;
+  // lompat & gravitasi
+  if(S.jumpBuf > 0) S.jumpBuf -= dt;
+  if(S.grounded) S.coyote = .1; else S.coyote -= dt;
+  if(S.jumpBuf > 0 && S.coyote > 0){
+    S.vy = JUMP_V; S.grounded = false; S.coyote = 0; S.jumpBuf = 0;
+    S.stamina = Math.max(0, S.stamina - 8); sfx.jump();
+  }
+  S.vy -= GRAVITY*dt; S.pos.y += S.vy*dt;
+  collidePlayer(S.pos, .42, S.pos.y);
+  const floor = floorAt(S.pos.x, S.pos.z, .2, S.pos.y);
+  if(S.pos.y <= floor){
+    if(!S.grounded && S.vy < -5){ sfx.land(); S.landT = .18; }
+    S.pos.y = floor; S.vy = 0; S.grounded = true;
+  } else if(S.pos.y > floor + .02) S.grounded = false;
+  player.position.copy(S.pos); player.rotation.y = S.yaw;
+  const v = S.grounded ? Math.hypot(S.vel.x,S.vel.z) : 0;
+  S.walk += v*dt*2.1;
+  const sw = Math.sin(S.walk)*Math.min(1,v/3)*.7;
+  if(S.grounded){ pLegL.rotation.x = sw; pLegR.rotation.x = -sw; }
+  else { pLegL.rotation.x = lerp(pLegL.rotation.x, -.7, dt*12); pLegR.rotation.x = lerp(pLegR.rotation.x, .35, dt*12); }
+  S.landT = Math.max(0, (S.landT||0) - dt);
+  torso.position.y = Math.abs(Math.cos(S.walk))*.04*Math.min(1,v/3) - S.landT*.4;
+  head.rotation.x = S.pitch*.35;
+  // senjata mengikuti pitch
+  gun.rotation.x = S.pitch*.85 + S.recoil*2; pArmR.rotation.x = Math.PI/2.2 + S.pitch*.85; pArmL.rotation.x = Math.PI/2.3 + S.pitch*.85;
+  if(canSprint){ gun.rotation.x -= .5; }
+
+  // ---- senjata ----
+  S.fireCd -= dt; S.bloom = Math.max(0, S.bloom - .09*dt); S.recoil = Math.max(0, S.recoil - .2*dt);
+  if(S.recoil > 0){ const k = Math.min(S.recoil, .35*dt*4); S.pitch = clamp(S.pitch + k*.6, -1.05, .75); }
+  tickReload(dt);
+  const w = curW();
+  if(S.switchT > 0){ S.switchT -= dt; }
+  else if((w.auto ? firing : trigger) && S.fireCd <= 0 && !canSprint) shoot();
+  // animasi ganti senjata & pompa shotgun
+  gun.position.y = 1.5 - Math.max(0, S.switchT)*.9;
+  gun.rotation.x -= Math.max(0, S.switchT)*2;
+  const pump = gunModels[2].userData.extra.pump;
+  if(pump) pump.position.z = -.6 + (S.wpn === 2 && S.fireCd > .25 && S.fireCd < .6 ? .14 : 0);
+  if(flashT > 0){ flashT -= dt; flashMesh.visible = true; flashMesh.scale.setScalar(rand(.7,1.3)); flashLight.intensity = 3; }
+  else { flashMesh.visible = false; flashLight.intensity = 0; }
+
+  // ---- gelombang ----
+  if(!S.between && S.toSpawn === 0 && aliveCount() === 0){
+    S.between = true;
+    if(S.wave === FINAL_WAVE && !S.endless){ victory(); return; }
+    if(S.wave % 2 === 0){   // setiap 2 gelombang: pindah area
+      S.intermission = 8.5; S.swapPhase = 1;
+      banner('GELOMBANG ' + S.wave + ' SELESAI', 'Evakuasi ke area berikutnya…', 2.4);
+    } else {
+      S.intermission = 6;
+      banner('GELOMBANG ' + S.wave + ' SELESAI', 'Darah +15 · cari posisi', 3); S.hp = Math.min(100, S.hp + 15);
+    }
+  }
+  if(S.between){
+    S.intermission -= dt;
+    // fade ke hitam (7→6 dtk tersisa), ganti area, lalu fade kembali (6→4,8)
+    if(S.swapPhase === 1){ fadeTo(clamp((7 - S.intermission)/1, 0, 1)); if(S.intermission <= 6){ swapArea(); S.swapPhase = 2; } }
+    else if(S.swapPhase === 2){ fadeTo(clamp((S.intermission - 4.8)/1.2, 0, 1)); if(S.intermission <= 4.8){ S.swapPhase = 0; fadeTo(0); } }
+    if(S.intermission <= 0){ S.between = false; nextWave(); }
+  }
+  if(S.toSpawn > 0){
+    S.spawnCd -= dt;
+    if(S.spawnCd <= 0 && aliveCount() < 18 + S.wave){ if(spawnZombie()) S.toSpawn--; S.spawnCd = Math.max(.35, 1.4 - S.wave*.1); }
+  }
+
+  // ---- flow field: hitung ulang saat pemain pindah sel ----
+  NAV.t -= dt;
+  const pc = cellOf(S.pos.z)*NAV.n + cellOf(S.pos.x);
+  if(pc !== NAV.pc && NAV.t <= 0){ NAV.pc = pc; NAV.t = .2; buildFlow(S.pos.x, S.pos.z); }
+
+  // ---- zombie ----
+  for(let i=zombies.length-1;i>=0;i--){
+    const z = zombies[i];
+    if(z.dead){
+      z.deadT += dt;
+      z.g.rotation.x = lerp(z.g.rotation.x, -Math.PI/2, Math.min(1, dt*7));
+      if(z.deadT > 2.5) z.g.position.y -= dt*.6;
+      if(z.deadT > 4){ scene.remove(z.g); z.mats.forEach(m=>m.dispose()); zombies.splice(i,1); }
+      continue;
+    }
+    const dx = S.pos.x - z.pos.x, dz = S.pos.z - z.pos.z, dist = Math.hypot(dx,dz);
+    // navigasi: jalan lurus kalau pemain terlihat langsung, selain itu ikuti flow field
+    z.navT -= dt;
+    if(z.navT <= 0){ z.navT = rand(.12,.22); z.los = dist < 1.6 || segClear(z.pos.x, z.pos.z, S.pos.x, S.pos.z, z.r + .05); }
+    let tx = dx/(dist||1), tz = dz/(dist||1);
+    if(!z.los && flowDir(z.pos.x, z.pos.z, navOut)){ tx = navOut.x; tz = navOut.z; }
+    // lepas dari posisi tersangkut: belok ke samping sebentar
+    if(z.unstick > 0){ z.unstick -= dt; const s = z.side; const ox = -tz*s, oz = tx*s; tx = tx*.3 + ox; tz = tz*.3 + oz; }
+    const k = Math.min(1, dt*7);
+    let dirX = lerp(z.dirX, tx, k), dirZ = lerp(z.dirZ, tz, k);
+    const dl = Math.hypot(dirX, dirZ) || 1; dirX /= dl; dirZ /= dl;
+    z.dirX = dirX; z.dirZ = dirZ;
+    // separasi
+    let sepX = 0, sepZ = 0;
+    for(const o of zombies){ if(o === z || o.dead) continue;
+      const ox = z.pos.x - o.pos.x, oz = z.pos.z - o.pos.z, d2 = ox*ox+oz*oz, rr = z.r + o.r + .1;
+      if(d2 < rr*rr && d2 > 1e-6){ const d = Math.sqrt(d2); sepX += ox/d*(rr-d); sepZ += oz/d*(rr-d); } }
+    const reach = z.r + .55 + .2*z.cfg.scale;
+    let spd = z.speed;
+    if(z.atk > 0) spd *= .2;
+    const ox0 = z.pos.x, oz0 = z.pos.z;
+    if(dist > reach){ z.pos.x += dirX*spd*dt; z.pos.z += dirZ*spd*dt; }
+    z.pos.x += sepX*.6; z.pos.z += sepZ*.6;
+    collideCircle(z.pos, z.r);
+    // deteksi tersangkut: ingin jalan tapi hampir tidak berpindah
+    if(dist > reach + .5 && z.atk <= 0){
+      const moved = Math.hypot(z.pos.x-ox0, z.pos.z-oz0);
+      if(moved < spd*dt*.3) z.stuckT += dt; else z.stuckT = Math.max(0, z.stuckT - dt*2);
+      if(z.stuckT > .6 && z.unstick <= 0){ z.unstick = rand(.4,.8); z.side = Math.random() < .5 ? 1 : -1; z.stuckT = 0; }
+    }
+    z.g.position.set(z.pos.x, 0, z.pos.z);
+    const targetRot = dist > 3 ? Math.atan2(dirX, dirZ) : Math.atan2(dx, dz);
+    let dr = targetRot - z.g.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr));
+    z.g.rotation.y += dr*Math.min(1, dt*8);
+    // animasi
+    z.phase += dt*spd*1.6;
+    const s = Math.sin(z.phase);
+    z.legL.rotation.x = s*.6; z.legR.rotation.x = -s*.6;
+    z.head.rotation.z = Math.sin(z.phase*.5)*.15;
+    z.g.rotation.z = Math.sin(z.phase*.5)*(z.type==='runner'?.04:.08);
+    let armX = -Math.PI/2 + s*.15;
+    // serangan
+    z.atkCd -= dt;
+    // pemain berdiri di atas rintangan: zombie meraih ke atas, jangkauan lebih jauh
+    const reachAtk = reach + (S.grounded && S.pos.y > .3 ? .9 : 0);
+    if(dist <= reachAtk + .15 && z.atkCd <= 0 && z.atk <= 0){ z.atk = .45; }
+    if(z.atk > 0){
+      const prev = z.atk; z.atk -= dt;
+      const t = 1 - z.atk/.45;
+      armX = -Math.PI/2 - Math.sin(t*Math.PI)*.9 + .4;
+      const dodged = !S.grounded && S.pos.y > .7;   // lompat tepat waktu = pukulan meleset
+      if(prev > .2 && z.atk <= .2 && dist <= reachAtk + .5 && !dodged){
+        S.hp -= z.cfg.dmg; S.hurt = .6; sfx.hurt();
+        S.vel.x += dirX*4; S.vel.z += dirZ*4;
+        if(S.hp <= 0){ S.hp = 0; gameOver(); }
+      }
+      if(z.atk <= 0) z.atkCd = z.type==='runner' ? .7 : 1.1;
+    }
+    z.armL.rotation.x = armX; z.armR.rotation.x = armX + Math.sin(z.phase+1)*.1;
+    // flash saat kena
+    if(z.flash > 0){ z.flash -= dt; z.mats[0].emissive.setHex(0x661111); z.mats[1].emissive.setHex(0x661111); }
+    else { z.mats[0].emissive.setHex(0); z.mats[1].emissive.setHex(0); }
+    z.groanT -= dt; if(z.groanT <= 0){ z.groanT = rand(4,10); if(dist < 18) sfx.groan(); }
+  }
+
+  // ---- pickup ----
+  for(let i=pickups.length-1;i>=0;i--){
+    const p = pickups[i]; p.t += dt;
+    p.g.rotation.y += dt*1.8; p.g.position.y = .45 + Math.sin(p.t*3)*.08;
+    if(S.pos.y < 1 && Math.hypot(p.g.position.x-S.pos.x, p.g.position.z-S.pos.z) < 1.3){
+      if(p.type === 'ammo'){ S.inv[1].reserve += 30; S.inv[2].reserve += 8; feed('+30 peluru AK · +8 shotgun'); }
+      else { if(S.hp >= 100) continue; S.hp = Math.min(100, S.hp + 35); feed('+35 darah'); }
+      sfx.pickup(); scene.remove(p.g); pickups.splice(i,1);
+    } else if(p.t > 30){ scene.remove(p.g); pickups.splice(i,1); }
+  }
+
+  S.hurt = Math.max(0, S.hurt - dt);
+}
+
+function updateEffects(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i]; p.life -= dt; p.v.y -= 12*dt; p.m.position.addScaledVector(p.v, dt);
+    if(p.m.position.y < .03){ p.m.position.y = .03; p.v.set(0,0,0); }
+    if(p.life <= 0){ scene.remove(p.m); particles.splice(i,1); }
+  }
+  for(let i=tracers.length-1;i>=0;i--){
+    const t = tracers[i]; t.life -= dt; t.l.material.opacity = Math.max(0, t.life/.06);
+    if(t.life <= 0){ scene.remove(t.l); t.l.geometry.dispose(); t.l.material.dispose(); tracers.splice(i,1); }
+  }
+}
+
+function updateCamera(dt){
+  const cp = Math.cos(S.pitch);
+  fwd.set(-Math.sin(S.yaw)*cp, Math.sin(S.pitch), -Math.cos(S.yaw)*cp);
+  right.set(Math.cos(S.yaw), 0, -Math.sin(S.yaw));
+  S.camY = lerp(S.camY ?? S.pos.y, S.pos.y, Math.min(1, dt*14));   // kamera ikut naik, sedikit diredam
+  const pivot = tmpV.set(S.pos.x, 1.65 + S.camY, S.pos.z);
+  const dist = lerp(3.8, 1.9, S.ads), side = lerp(.85, .7, S.ads);
+  const desired = new THREE.Vector3().copy(pivot).addScaledVector(fwd, -dist).addScaledVector(right, side).addScaledVector(up, .25);
+  // tarik kamera jika terhalang rintangan
+  const toCam = desired.clone().sub(pivot); const len = toCam.length(); toCam.divideScalar(len);
+  camRay.set(pivot, toCam); camRay.far = len;
+  const h = camRay.intersectObjects(solidMeshes, false);
+  if(h.length) desired.copy(pivot).addScaledVector(toCam, Math.max(.4, h[0].distance - .25));
+  if(desired.y < .3) desired.y = .3;
+  camera.position.copy(desired);
+  camDistNow = camera.position.distanceTo(pivot);
+  camera.lookAt(tmpV2.copy(camera.position).add(fwd));
+  const fov = lerp(70, 48, S.ads) + (keys.ShiftLeft && S.stamina > 2 && !aiming ? 4 : 0);
+  if(Math.abs(camera.fov - fov) > .05){ camera.fov = lerp(camera.fov, fov, Math.min(1, dt*12)); camera.updateProjectionMatrix(); }
+  if(S.hurt > 0){ camera.position.x += rand(-.04,.04)*S.hurt; camera.position.y += rand(-.04,.04)*S.hurt; }
+}
+
+function updateHudFx(dt){
+  const gap = 6 + currentSpread()*500;
+  const kids = hud.xh.children;
+  kids[0].style.top = (-gap-9)+'px'; kids[1].style.top = gap+'px';
+  kids[2].style.left = (-gap-9)+'px'; kids[3].style.left = gap+'px';
+  hud.xh.style.opacity = S.reload > 0 ? .35 : 1;
+  hitT = Math.max(0, hitT - dt); hud.hit.style.opacity = hitT > 0 ? 1 : 0;
+  hud.vig.style.opacity = Math.max(S.hurt*1.2, S.hp < 35 ? (.25 + Math.sin(performance.now()/250)*.1) : 0);
+  hud.adsVig.style.opacity = S.ads;
+  bannerT = Math.max(0, bannerT - dt); hud.banner.style.opacity = bannerT > 0 ? Math.min(1, bannerT*2) : 0;
+  updateHud();
+}
+
+// kamera menu: orbit pelan
+let menuT = 0;
+function menuCamera(dt){
+  menuT += dt*.08;
+  camera.position.set(Math.cos(menuT)*9.5, 8.5, Math.sin(menuT)*9.5);
+  camera.lookAt(0,.5,0);
+}
+// beberapa zombie hiasan untuk layar menu
+S.wave = 1;
+for(let i=0;i<5;i++){ const a = i/5*Math.PI*2; const z = makeZombie(i===2?'tank':(i%2?'runner':'walker'), Math.cos(a)*6, Math.sin(a)*6); z.speed = 0; }
+S.wave = 0;
+
+function frame(){
+  const dt = Math.min(clock.getDelta(), .05);
+  const pl = S.state === 'playing';
+  if(pl !== lastPl){ lastPl = pl; touchEl.classList.toggle('on', pl); if(!pl) resetTouch(); }
+  if(S.state === 'playing'){ update(dt); updateCamera(dt); updateHudFx(dt); }
+  else if(S.state === 'over'){ updateCamera(dt); S.pitch = lerp(S.pitch, -.6, dt*2); updateHudFx(dt); }
+  else if(S.state === 'win'){ updateVictory(dt); }
+  else if(S.state === 'menu'){
+    menuCamera(dt);
+    for(const z of zombies){ z.phase += dt*2; const s = Math.sin(z.phase); z.legL.rotation.x = s*.3; z.legR.rotation.x = -s*.3;
+      z.armL.rotation.x = z.armR.rotation.x = -Math.PI/2 + s*.12; z.g.rotation.y = Math.atan2(-z.pos.x,-z.pos.z); }
+  }
+  updateFireworks(dt);
+  updateEffects(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+showCard('menuCard');
+requestAnimationFrame(frame);
+})();
+</script>
+
+<script>
+/* PWA: service worker untuk main offline + tombol pasang aplikasi */
+if('serviceWorker' in navigator){
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+(() => {
+  let deferred = null;
+  const btn = document.getElementById('installBtn');
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; btn.hidden = false; });
+  btn.addEventListener('click', async () => {
+    if(!deferred) return;
+    deferred.prompt();
+    try{ await deferred.userChoice; }catch(e){}
+    deferred = null; btn.hidden = true;
+  });
+  addEventListener('appinstalled', () => { btn.hidden = true; });
+})();
+</script>
+</body>
+</html>
